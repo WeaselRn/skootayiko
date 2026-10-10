@@ -22,6 +22,7 @@ export default function About() {
           ranges from <code>config/fares.json</code>.
         </li>
         <li>Road and walking directions: openrouteservice by HeiGIT, © OpenStreetMap contributors.</li>
+        <li>Fallback street paths for drawing routes: OSRM on routing.openstreetmap.de (FOSSGIS e.V.), © OpenStreetMap contributors.</li>
         <li>Place search: LocationIQ, © OpenStreetMap contributors.</li>
         <li>Map tiles: © MapTiler © OpenStreetMap contributors.</li>
       </ul>

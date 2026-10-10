@@ -305,6 +305,103 @@ function paintBasemap(map: MlMap) {
   map.setLight({ anchor: "viewport", color: "#fff1d6", intensity: 0.42, position: [1.4, 205, 35] });
 }
 
+/* ---------------------------------------------------------------- Streets */
+
+/** Zoom where our real-width streets take over from the basemap's thin road lines. */
+const STREET_ZOOM = 15;
+/** Screen pixels per metre at Kochi's latitude (~10° N) for a given zoom: 512·2^z / (C·cos φ). */
+const PX_PER_M_Z15 = 0.4251;
+const PX_PER_M_Z24 = 217.65;
+/** Typical carriageway width (m) by OpenMapTiles road class. */
+const ROAD_WIDTH_M: unknown = [
+  "match",
+  ["get", "class"],
+  "motorway", 16,
+  "trunk", 14,
+  "primary", 12,
+  "secondary", 10,
+  "tertiary", 8.5,
+  "minor", 6.5,
+  "service", 4.5,
+  "track", 3.5,
+  6,
+];
+/** Metres → pixels, exact at every zoom from STREET_ZOOM up (exponential base 2). */
+const metres = (m: unknown) => ["interpolate", ["exponential", 2], ["zoom"], STREET_ZOOM, ["*", m, PX_PER_M_Z15], 24, ["*", m, PX_PER_M_Z24]];
+const VEHICLE_ROADS = ["motorway", "trunk", "primary", "secondary", "tertiary", "minor", "service", "track"];
+const MARKED_ROADS = ["motorway", "trunk", "primary", "secondary", "tertiary"];
+const notTunnel = ["!=", ["get", "brunnel"], "tunnel"];
+const isLine = ["==", ["geometry-type"], "LineString"];
+const fadeIn = ["interpolate", ["linear"], ["zoom"], STREET_ZOOM, 0, STREET_ZOOM + 0.6, 1];
+
+/**
+ * Real-width streets from the vector tiles: kerb/footpath strip, asphalt, white edge lines and a dashed
+ * centre line on marked roads, and sandy footpaths. Drawn under labels and 3D buildings (so buildings
+ * hide them), and only from STREET_ZOOM up; the basemap's own thin road lines are kept for zoomed-out views.
+ */
+function addStreets(map: MlMap, src: string, before?: string) {
+  for (const layer of map.getStyle().layers ?? []) {
+    const l = layer as { id: string; type: string; "source-layer"?: string; minzoom?: number };
+    if (l.type !== "line" || l["source-layer"] !== "transportation") continue;
+    if (/rail|ferry|cable|tunnel|construction|pier/i.test(l.id)) continue;
+    map.setLayerZoomRange(l.id, l.minzoom ?? 0, STREET_ZOOM + 0.6);
+  }
+  const base = { type: "line" as const, source: src, "source-layer": "transportation", minzoom: STREET_ZOOM };
+  const roads = ["all", isLine, notTunnel, ["in", ["get", "class"], ["literal", VEHICLE_ROADS]]];
+  const marked = ["all", isLine, notTunnel, ["in", ["get", "class"], ["literal", MARKED_ROADS]]];
+  const paths = ["all", isLine, notTunnel, ["in", ["get", "class"], ["literal", ["path", "pedestrian"]]]];
+  const add = (spec: object) => map.addLayer(spec as never, before);
+  add({
+    ...base,
+    id: "street-path",
+    filter: paths,
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#e2cfa3", "line-width": metres(2.4), "line-opacity": fadeIn },
+  });
+  // Footpath / kerb strip either side of the carriageway.
+  add({
+    ...base,
+    id: "street-kerb",
+    filter: roads,
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#d4cdbd", "line-width": metres(["+", ROAD_WIDTH_M, 3]), "line-opacity": fadeIn },
+  });
+  add({
+    ...base,
+    id: "street-asphalt",
+    filter: roads,
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": ["match", ["get", "class"], ["service", "track"], "#6f7379", "#565b63"], "line-width": metres(ROAD_WIDTH_M), "line-opacity": fadeIn },
+  });
+  // Edge lines: a thin line drawn either side of a gap the width of the carriageway.
+  add({
+    ...base,
+    id: "street-edge",
+    minzoom: 16.5,
+    filter: marked,
+    layout: { "line-join": "round" },
+    paint: {
+      "line-color": "#eeeee6",
+      "line-width": metres(0.15),
+      "line-gap-width": metres(["-", ROAD_WIDTH_M, 1]),
+      "line-opacity": 0.75,
+    },
+  });
+  add({
+    ...base,
+    id: "street-centre",
+    minzoom: 16,
+    filter: marked,
+    layout: { "line-join": "round" },
+    paint: {
+      "line-color": "#f5f2e6",
+      "line-width": ["interpolate", ["exponential", 2], ["zoom"], 16, 1, 24, 0.15 * PX_PER_M_Z24],
+      "line-dasharray": [4, 4],
+      "line-opacity": 0.9,
+    },
+  });
+}
+
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 export default function JourneyMap(props: Props) {
@@ -378,7 +475,12 @@ export default function JourneyMap(props: Props) {
             "fill-extrusion-opacity": opacity,
           } as never,
         });
+        // Below the basemap's labels so street names stay readable.
+        addStreets(map, src, map.getStyle().layers?.find((l) => l.type === "symbol")?.id);
       }
+      // Route lines sit on the ground under the 3D buildings, so a building in front hides the line
+      // instead of the line being painted across it.
+      const under = map.getLayer("buildings-3d") ? "buildings-3d" : undefined;
       map.addSource("alt", { type: "geojson", data: EMPTY });
       map.addSource("route", { type: "geojson", data: EMPTY });
       map.addSource("stops", { type: "geojson", data: EMPTY });
@@ -388,7 +490,7 @@ export default function JourneyMap(props: Props) {
         source: "alt",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": "#94a3b8", "line-width": 3, "line-opacity": 0.5 },
-      });
+      }, under);
       map.addLayer({
         id: "route-glow",
         type: "line",
@@ -400,7 +502,7 @@ export default function JourneyMap(props: Props) {
           "line-blur": 10,
           "line-opacity": ["case", ["boolean", ["feature-state", "dim"], false], 0.12, 0.38],
         },
-      });
+      }, under);
       map.addLayer({
         id: "route-casing",
         type: "line",
@@ -408,7 +510,7 @@ export default function JourneyMap(props: Props) {
         filter: ["!", ["get", "dashed"]],
         layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": "#ffffff", "line-width": ["case", ["boolean", ["feature-state", "active"], false], 11, 8] },
-      });
+      }, under);
       map.addLayer({
         id: "route-line",
         type: "line",
@@ -420,7 +522,7 @@ export default function JourneyMap(props: Props) {
           "line-width": ["case", ["boolean", ["feature-state", "active"], false], 7, 5],
           "line-opacity": ["case", ["boolean", ["feature-state", "dim"], false], 0.45, 1],
         },
-      });
+      }, under);
       map.addLayer({
         id: "route-walk",
         type: "line",
@@ -432,7 +534,7 @@ export default function JourneyMap(props: Props) {
           "line-width": ["case", ["boolean", ["feature-state", "active"], false], 5, 3.5],
           "line-dasharray": [0.1, 2],
         },
-      });
+      }, under);
       map.addLayer({
         id: "stops",
         type: "circle",

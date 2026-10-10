@@ -61,6 +61,15 @@ RAPTOR is a round-based search with one round per ride. It returns a Pareto set 
 - **Timeline:** travel, visit (with real wait for opening and "closes soon / may be closed" warnings) and lunch blocks, contiguous from start to finish. `fits`, `usedMin` and `slackMin` compare the routed finish with the budget.
 - **Scenic:** `scenicScore` = balanced score − 1.5 × ferry seconds − 0.3 × walking seconds (`config/fares.json` → `ranking`).
 
+## Street geometry (`geometry.ts`, `osrm.ts`)
+- Road and walking segments that are still straight lines (ORS skipped, failed or out of quota) get street/footpath geometry after planning: ORS first, then OSRM (`OSRM_BASE_URL`, default FOSSGIS `routing.openstreetmap.de`, `off` disables) with all pairs batched into one request per profile, spaced ≥ 1 s apart. Geometry only; times and distances stay as planned.
+- `/api/route` fills the returned journeys; the day planner explores orders without ORS and fills only the final day (≈ one request per leg instead of hundreds), which keeps the ORS daily quota for real use.
+- When ORS answers "Quota exceeded", it is not called again until the next UTC day.
+
+## Map streets (`JourneyMap.tsx`)
+- From zoom 15 the basemap's thin road lines give way to real-width streets from the vector tiles: kerb strip, asphalt (width by road class), white edge lines and a dashed centre line on marked roads, sandy footpaths. Drawn under labels and 3D buildings.
+- Route lines are drawn under the 3D buildings, so a building in front hides the line instead of the line being painted across it.
+
 ## Ranking (`rank.ts`)
 - **fastest:** the lowest door-to-door duration.
 - A route is **practical** if its duration is at most max(2 × fastest, fastest + 30 min).

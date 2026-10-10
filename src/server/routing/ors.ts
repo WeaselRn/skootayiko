@@ -17,6 +17,8 @@ let day = new Date().toISOString().slice(0, 10);
 let dayCount = 0;
 let minuteStart = Date.now();
 let minuteCount = 0;
+/** Set when ORS says the daily quota is used up; cleared on the next UTC day. */
+let exhaustedDay = "";
 
 function takeQuota(): boolean {
   const today = new Date().toISOString().slice(0, 10);
@@ -42,6 +44,7 @@ export async function orsDirections(profile: OrsProfile, from: Coordinate, to: C
   const hit = cache.get(key);
   if (hit) return hit;
   if (!env.ORS_API_KEY) throw new OrsUnavailable("ORS_API_KEY not set");
+  if (exhaustedDay === new Date().toISOString().slice(0, 10)) throw new OrsUnavailable("ORS daily quota exceeded");
   if (!takeQuota()) throw new OrsUnavailable("ORS request budget exhausted");
 
   let res: Response;
@@ -54,6 +57,10 @@ export async function orsDirections(profile: OrsProfile, from: Coordinate, to: C
     });
   } catch (e) {
     throw new OrsUnavailable(`ORS request failed: ${(e as Error).message}`);
+  }
+  if (res.status === 403 || res.status === 429) {
+    const body = await res.text().catch(() => "");
+    if (/quota/i.test(body)) exhaustedDay = new Date().toISOString().slice(0, 10);
   }
   if (!res.ok) throw new OrsUnavailable(`ORS HTTP ${res.status}`);
   const json = (await res.json()) as {

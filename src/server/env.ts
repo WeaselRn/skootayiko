@@ -14,6 +14,11 @@ const Env = z.object({
   ORS_BASE_URL: z.string().default("https://api.openrouteservice.org"),
   ORS_DAILY_BUDGET: z.coerce.number().default(1500),
   ORS_RATE_PER_MIN: z.coerce.number().default(35),
+  /** Fallback street geometry (OSRM, OpenStreetMap data). Set to "off" to disable. */
+  OSRM_BASE_URL: z
+    .string()
+    .default("https://routing.openstreetmap.de")
+    .transform((v) => (v === "off" ? "" : v.replace(/\/$/, ""))),
   GTFS_METRO_DIR: z.string().default("./metro details"),
   GTFS_BUS_DIR: z.string().default("./kochi bus details"),
   GTFS_CACHE_DIR: z.string().default("./.cache/gtfs"),

@@ -8,6 +8,7 @@ import { suggestAlongRoute, type SuggestInput } from "@/server/suggest/nearby";
 import { planJourney } from "./multi";
 import type { PlanDeps } from "./plan";
 import { scenicScore } from "./rank";
+import { attachRoadGeometry } from "./geometry";
 import { LUNCH_MIN, approxTravelSec, openWindows, scheduleOrder, solveItinerary, type Schedule, type SolveInput } from "./itinerary";
 import { serviceClock, toIstIso } from "./time";
 
@@ -194,6 +195,7 @@ export async function planDay(input: ItineraryInput, deps: DayDeps = {}): Promis
   }
   if (!fitsBy(routed.finishSec)) {
     warnings.push(`Real travel times make this day about ${Math.round((routed.finishSec - startSec - budgetSec) / 60)} min longer than your budget.`);
+    await withStreets(routed.plan, routed.selected);
     return respond(routed.plan, routed.selected, routed.timeline, routed.finishSec);
   }
 
@@ -215,7 +217,15 @@ export async function planDay(input: ItineraryInput, deps: DayDeps = {}): Promis
       }
     }
   }
+  await withStreets(routed.plan, routed.selected);
   return respond(routed.plan, routed.selected, routed.timeline, routed.finishSec);
+
+  /** Swaps straight road/walk lines for real street paths so the map and the ride follow roads. */
+  async function withStreets(plan: RoutePlanResponse, selected: number) {
+    if (deps.useOrs === false) return;
+    const left = await attachRoadGeometry(plan, selected);
+    if (left > 0) warnings.push(`Street paths were unavailable for ${left} leg${left === 1 ? "" : "s"}; those are drawn as straight lines.`);
+  }
 
   function approxTravelMin(ids: string[]): number {
     const pts = [input.start.location, ...ids.map((id) => byId.get(id)!.location), end.location];
@@ -247,8 +257,10 @@ export async function planDay(input: ItineraryInput, deps: DayDeps = {}): Promis
         departAt: startIso,
         accessModes: input.accessModes,
       },
-      deps,
+      // Exploring orders makes many router calls; street geometry is fetched once for the final day.
+      { ...deps, useOrs: false },
     );
+    plan.dataWarnings = (plan.dataWarnings ?? []).filter((w) => !w.startsWith("Road directions disabled"));
     const selected = pickOption(plan.options, input.prefer);
     if (selected < 0) return { ok: false, sched, dataWarnings: plan.dataWarnings ?? [] };
     const built = realTimeline(plan.options[selected], sched, ids);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { RoutePlanRequest, RoutePlanResponse } from "@/schema/route";
 import { env } from "@/server/env";
 import { planJourney } from "@/server/routing/multi";
+import { attachRoadGeometry } from "@/server/routing/geometry";
 import { pickFixture } from "@/fixtures";
 
 export const runtime = "nodejs";
@@ -51,7 +52,10 @@ export async function POST(req: Request) {
   if (hit && Date.now() - hit.at < env.ROUTE_CACHE_TTL_SECONDS * 1000) return NextResponse.json(hit.body);
 
   try {
-    const plan = RoutePlanResponse.parse(await planJourney(parsed.data));
+    const raw = await planJourney(parsed.data);
+    // Legs whose ORS refinement was skipped or hit the quota get street geometry (ORS, else OSRM).
+    await attachRoadGeometry(raw, 0);
+    const plan = RoutePlanResponse.parse(raw);
     if (cache.size > 500) cache.delete(cache.keys().next().value!);
     cache.set(key, { at: Date.now(), body: plan });
     return NextResponse.json(plan);
