@@ -11,3 +11,10 @@ next-env.d.ts
 .env.*.local
 !.env.example
 public/vendor/
+public/data/
+
+# cloudflare
+.open-next/
+.wrangler/
+.dev.vars
+cloudflare-env.d.ts

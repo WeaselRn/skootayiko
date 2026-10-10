@@ -9,12 +9,17 @@ export type OsrmProfile = "foot" | "car" | "bike";
  * batched into one multi-waypoint request per profile and requests are spaced at least 1 s apart.
  */
 const GAP_MS = 1100;
-let queue: Promise<unknown> = Promise.resolve();
-function throttled<T>(fn: () => Promise<T>): Promise<T> {
-  const run = queue.then(fn);
-  const wait = () => new Promise((r) => setTimeout(r, GAP_MS));
-  queue = run.then(wait, wait);
-  return run;
+let nextAt = 0;
+/**
+ * Spaces calls GAP_MS apart. Uses a shared timestamp, not a shared promise chain: on Cloudflare Workers a
+ * timer created by one request is cancelled when that request ends, so chaining across requests would hang.
+ */
+async function throttled<T>(fn: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const at = Math.max(now, nextAt);
+  nextAt = at + GAP_MS;
+  if (at > now) await new Promise((r) => setTimeout(r, at - now));
+  return fn();
 }
 
 const cache = new Map<string, Coordinate[]>();

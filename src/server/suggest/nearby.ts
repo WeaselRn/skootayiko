@@ -38,14 +38,17 @@ export class SuggestError extends Error {
 
 /** LocationIQ's free tier allows 2 requests/second; space provider calls so a burst never trips it. */
 const GAP_MS = 550;
-let queue: Promise<unknown> = Promise.resolve();
-function throttled<T>(fn: () => Promise<T>): Promise<T> {
-  const run = queue.then(fn);
-  queue = run.then(
-    () => new Promise((r) => setTimeout(r, GAP_MS)),
-    () => new Promise((r) => setTimeout(r, GAP_MS)),
-  );
-  return run;
+let nextAt = 0;
+/**
+ * Spaces calls GAP_MS apart. Uses a shared timestamp, not a shared promise chain: on Cloudflare Workers a
+ * timer created by one request is cancelled when that request ends, so chaining across requests would hang.
+ */
+async function throttled<T>(fn: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const at = Math.max(now, nextAt);
+  nextAt = at + GAP_MS;
+  if (at > now) await new Promise((r) => setTimeout(r, at - now));
+  return fn();
 }
 
 async function nearby(c: Coordinate, radiusM: number, tags: string[]): Promise<LiqNearby[]> {

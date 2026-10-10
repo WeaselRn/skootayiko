@@ -6,6 +6,8 @@ import { attachRoadGeometry } from "@/server/routing/geometry";
 import { pickFixture } from "@/fixtures";
 
 export const runtime = "nodejs";
+/** Seconds; route planning plus provider calls can exceed serverless defaults on a cold start (Vercel). */
+export const maxDuration = 60;
 
 const cache = new Map<string, { at: number; body: RoutePlanResponse }>();
 const hits = new Map<string, number[]>();

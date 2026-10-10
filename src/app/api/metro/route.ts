@@ -9,7 +9,7 @@ let cached: MetroNetwork | null = null;
 /** Static KMRL line + stations from the GTFS feed, for drawing the whole network. */
 export async function GET() {
   if (!cached) {
-    const net = getNetwork();
+    const net = await getNetwork();
     const metroPatterns = net.patterns.filter((p) => net.routes[p.route].mode === "metro" && p.shape >= 0);
     // The pattern with the most stops covers the full line.
     const full = metroPatterns.sort((a, b) => b.stops.length - a.stops.length)[0];

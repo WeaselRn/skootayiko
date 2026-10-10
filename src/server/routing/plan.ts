@@ -415,7 +415,7 @@ export function staticProvenance(net: LoadedNetwork): DataProvenance[] {
 }
 
 export async function planRoutes(req: RoutePlanRequest, deps: PlanDeps = {}): Promise<RoutePlanResponse> {
-  const net = deps.network ?? getNetwork();
+  const net = deps.network ?? (await getNetwork());
   const useOrs = deps.useOrs ?? true;
   const clock = serviceClock(req.departAt ?? (deps.now ?? new Date()).toISOString());
   const services = new Set(net.servicesByDow[clock.dow]);

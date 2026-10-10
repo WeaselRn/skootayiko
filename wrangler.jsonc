@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Must match the Worker name in the Cloudflare dashboard when using Workers Builds (Git deploys).
+  "name": "skootayiko",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    // Also used by src/server/gtfs/load.ts to read /data/network.json at runtime.
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true }
+  // Secrets (LOCATIONIQ_API_KEY, ORS_API_KEY) are set in the dashboard or with `wrangler secret put`,
+  // never here. NEXT_PUBLIC_* values are inlined at build time: set them as build variables.
+}

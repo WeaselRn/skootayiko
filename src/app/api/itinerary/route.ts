@@ -3,6 +3,8 @@ import { ItineraryRequest, ItineraryResponse } from "@/schema/itinerary";
 import { planDay } from "@/server/routing/dayplan";
 
 export const runtime = "nodejs";
+/** Seconds; route planning plus provider calls can exceed serverless defaults on a cold start (Vercel). */
+export const maxDuration = 60;
 
 const hits = new Map<string, number[]>();
 const RATE_PER_MIN = 10;

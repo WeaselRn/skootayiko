@@ -8,7 +8,7 @@ import { rankOptions } from "@/server/routing/rank";
 import { busFare, metroFare, roadFare } from "@/server/routing/fares";
 import { FIXTURES } from "@/fixtures";
 
-const net = getNetwork();
+const net = await getNetwork();
 const MONDAY_0830 = "2026-10-12T08:30:00+05:30";
 const loc = (lat: number, lon: number, name = "P") => ({ name, location: { lat, lon } });
 
