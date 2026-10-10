@@ -4,6 +4,7 @@ import type { RouteOption } from "@/schema/route";
 import { fmtClock, fmtCost, fmtDistance, fmtDuration, SOURCE_LABEL } from "@/lib/format";
 import { MODE_STYLE } from "@/lib/modes";
 import { stopLetter } from "@/lib/stops";
+import ExternalLinks from "./ExternalLinks";
 
 const CONF: Record<string, string> = {
   high: "text-emerald-700 dark:text-emerald-400",
@@ -93,6 +94,7 @@ export default function SegmentList({
                 <span className={CONF[s.confidence]}>{s.confidence} confidence</span>
               </div>
             </button>
+            <ExternalLinks segment={s} />
           </li>
         );
       })}
