@@ -70,6 +70,15 @@ RAPTOR is a round-based search with one round per ride. It returns a Pareto set 
 - From zoom 15 the basemap's thin road lines give way to real-width streets from the vector tiles: kerb strip, asphalt (width by road class), white edge lines and a dashed centre line on marked roads, sandy footpaths. Drawn under labels and 3D buildings.
 - Route lines are drawn under the 3D buildings, so a building in front hides the line instead of the line being painted across it.
 
+## Groups (`partySize`, `fares.ts` → `forParty`)
+- Fares are for the whole group: metro, bus and boat per person; road rides per vehicle needed (bike taxi 1 seat, auto 3, taxi 4; `config/fares.json` → `group`). Walking stays free. A step needing several vehicles says so ("needs 2 autos").
+- Bike taxis are left out for 3+ people (`bikeTaxiMaxParty`); an auto then replaces the bike taxi as the ride to and from transit. Ranking then runs on the group totals, so one shared taxi can come out cheapest.
+- Passed through multi-stop trips and the day planner; part of the route cache key.
+
+## Restaurants (`food` interest)
+- "Restaurants & cafés" (`amenity:restaurant`, `amenity:cafe`) is queried from LocationIQ separately from the other interests so restaurants cannot crowd sights out of the 50-result cap. At most 6 appear in a suggestion list. The lodging-name filter does not apply ("Hotel …" is usually an eatery in Kerala).
+- Day planner: a restaurant visit starting 11:30–15:00 is the lunch break (no separate 45-minute break); at most 2 food stops a day, never two in a row.
+
 ## Ranking (`rank.ts`)
 - **fastest:** the lowest door-to-door duration.
 - A route is **practical** if its duration is at most max(2 × fastest, fastest + 30 min).

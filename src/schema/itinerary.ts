@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Coordinate, MAX_VIA, RoutePlanResponse, TransportMode } from "./route";
+import { Coordinate, MAX_PARTY, MAX_VIA, RoutePlanResponse, TransportMode } from "./route";
 import { Suggestion } from "./suggest";
 
 const Place = z.object({ name: z.string().default("Place"), location: Coordinate });
@@ -28,6 +28,8 @@ export const ItineraryRequest = z.object({
   /** How the real route between stops is picked. */
   prefer: z.enum(["fastest", "scenic"]).default("fastest"),
   accessModes: z.array(z.enum(["walking", "bike_taxi", "taxi", "auto_rickshaw"])).optional(),
+  /** Travellers in the group; fares and modes follow planRoutes' group rules. */
+  partySize: z.number().int().min(1).max(MAX_PARTY).default(1),
 });
 export type ItineraryRequest = z.input<typeof ItineraryRequest>;
 export type ItineraryInput = z.output<typeof ItineraryRequest>;

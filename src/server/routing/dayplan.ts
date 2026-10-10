@@ -256,6 +256,7 @@ export async function planDay(input: ItineraryInput, deps: DayDeps = {}): Promis
         }),
         departAt: startIso,
         accessModes: input.accessModes,
+        partySize: input.partySize,
       },
       // Exploring orders makes many router calls; street geometry is fetched once for the final day.
       { ...deps, useOrs: false },
@@ -285,9 +286,10 @@ export async function planDay(input: ItineraryInput, deps: DayDeps = {}): Promis
     return worst;
   }
 
-  function visitItem(id: string, arrive: number, leave: number, wait: number): TimelineItem {
+  function visitItem(id: string, arrive: number, leave: number, wait: number, meal = false): TimelineItem {
     const s = byId.get(id)!;
     const notes: string[] = [];
+    if (meal) notes.push("Your lunch break");
     const wins = openWindows(s, clock.dow);
     const start = arrive + wait;
     const w = wins.find(([o, cl]) => start >= o && start < cl);
@@ -327,7 +329,7 @@ export async function planDay(input: ItineraryInput, deps: DayDeps = {}): Promis
       const s = byId.get(id)!;
       const opens = openWindows(s, clock.dow).find(([, cl]) => t < cl)?.[0] ?? t;
       const wait = Math.min(stay, Math.max(0, opens - t));
-      timeline.push(visitItem(id, t, t + stay, wait));
+      timeline.push(visitItem(id, t, t + stay, wait, v.meal));
       t += stay;
       if (v.lunchAfter) {
         timeline.push({ kind: "lunch", near: s.name, startAt: iso(t), endAt: iso(t + LUNCH_MIN * 60), minutes: LUNCH_MIN });
@@ -347,7 +349,7 @@ export async function planDay(input: ItineraryInput, deps: DayDeps = {}): Promis
     let t = startSec;
     sched.visits.forEach((v, i) => {
       timeline.push({ kind: "travel", leg: i, from: names[i], to: names[i + 1], departAt: iso(t), arriveAt: iso(v.arriveSec), minutes: Math.round((v.arriveSec - t) / 60), modes: [] });
-      timeline.push(visitItem(v.id, v.arriveSec, v.leaveSec, v.waitSec));
+      timeline.push(visitItem(v.id, v.arriveSec, v.leaveSec, v.waitSec, v.meal));
       t = v.leaveSec;
       if (v.lunchAfter) {
         timeline.push({ kind: "lunch", near: names[i + 1], startAt: iso(t), endAt: iso(t + LUNCH_MIN * 60), minutes: LUNCH_MIN });

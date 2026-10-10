@@ -14,6 +14,7 @@ export const INTERESTS: Interest[] = [
   { id: "nature", label: "Parks & nature", tags: ["leisure:park", "leisure:garden", "leisure:nature_reserve"] },
   { id: "fun", label: "Family fun", tags: ["tourism:theme_park", "tourism:zoo", "tourism:aquarium"] },
   { id: "worship", label: "Temples & churches", tags: ["amenity:place_of_worship"] },
+  { id: "food", label: "Restaurants & cafés", tags: ["amenity:restaurant", "amenity:cafe"] },
 ];
 
 export const DEFAULT_INTERESTS = ["sights", "heritage"];

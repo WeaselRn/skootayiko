@@ -131,24 +131,22 @@ export default function RideHud(p: Props) {
 
   return (
     <>
-      {/* Touch controls */}
-      <div className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-1 flex items-end gap-2 [@media(pointer:fine)]:hidden">
-        <div className="flex flex-col gap-2">
-          <HoldButton k="left" label="Look left" onPress={p.onPress} className="h-11 w-11 text-lg">
-            ⟲
-          </HoldButton>
-          <HoldButton k="right" label="Look right" onPress={p.onPress} className="h-11 w-11 text-lg">
-            ⟳
-          </HoldButton>
-        </div>
-        <div className="flex flex-col gap-2">
-          <HoldButton k="fwd" label="Go forward" onPress={p.onPress} className="h-16 w-16 text-sm font-bold">
-            GO
-          </HoldButton>
-          <HoldButton k="back" label="Go back" onPress={p.onPress} className="h-11 w-16 text-xs font-bold">
-            BACK
-          </HoldButton>
-        </div>
+      {/* Touch controls: look left/right under the left thumb, GO/BACK under the right. */}
+      <div className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1 flex items-end gap-2 [@media(pointer:fine)]:hidden">
+        <HoldButton k="left" label="Look left" onPress={p.onPress} className="h-14 w-14 text-xl">
+          ⟲
+        </HoldButton>
+        <HoldButton k="right" label="Look right" onPress={p.onPress} className="h-14 w-14 text-xl">
+          ⟳
+        </HoldButton>
+      </div>
+      <div className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-1 flex flex-col items-end gap-2 [@media(pointer:fine)]:hidden">
+        <HoldButton k="fwd" label="Go forward" onPress={p.onPress} className="h-16 w-16 text-sm font-bold">
+          GO
+        </HoldButton>
+        <HoldButton k="back" label="Go back" onPress={p.onPress} className="h-11 w-16 text-xs font-bold">
+          BACK
+        </HoldButton>
       </div>
 
       <div className="pointer-events-auto rounded-2xl border border-[var(--color-line)] bg-[var(--color-panel)]/95 p-3 shadow-xl backdrop-blur">

@@ -60,6 +60,7 @@ export default function Planner() {
   const [departMode, setDepartMode] = useState<"now" | "at">("now");
   const [departAt, setDepartAt] = useState("");
   const [bikeTaxi, setBikeTaxi] = useState(true);
+  const [party, setParty] = useState(1);
   const [plan, setPlan] = useState<RoutePlanResponse | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [selected, setSelected] = useState(0);
@@ -119,7 +120,8 @@ export default function Planner() {
   const dayMode = mode === "day";
   const canSearch = !!origin && (dayMode ? dayInterests.length > 0 || stops.slice(1, -1).some((s) => s.value) : !!destination) && status.kind !== "loading";
   const filled = useMemo(() => stops.filter((s) => s.value), [stops]);
-  const curKey = stopsKey(stops);
+  // Party size changes fares and modes, so it is part of what a plan was made for.
+  const curKey = `${stopsKey(stops)}|p${party}`;
   const dayInputsKey = `${curKey}|${budgetMin}|${departAt}|${dayInterests.join(",")}|${pace}|${lunch}|${prefer}`;
   const planStale = dayMode ? !!itinerary && dayKey !== dayInputsKey : !!plan && planKey !== curKey;
 
@@ -184,6 +186,7 @@ export default function Planner() {
             .flatMap((s) => (s.value ? [s.value] : [])),
           departAt: departMode === "at" && departAt ? istLocalToIso(departAt) : undefined,
           accessModes: bikeTaxi ? ["walking", "bike_taxi"] : ["walking"],
+          partySize: party,
         }),
       });
       const json = await res.json();
@@ -224,6 +227,7 @@ export default function Planner() {
           exclude: ex,
           extraStops: stops.slice(1, -1).flatMap((s) => (s.value ? [s.value] : [])),
           accessModes: bikeTaxi ? ["walking", "bike_taxi"] : ["walking"],
+          partySize: party,
         }),
       });
       const json = await res.json();
@@ -427,10 +431,40 @@ export default function Planner() {
                 className="rounded-md border border-[var(--color-line)] bg-transparent px-2 py-1"
               />
             )}
-            <label className="flex items-center gap-1">
-              <input type="checkbox" checked={bikeTaxi} onChange={(e) => setBikeTaxi(e.target.checked)} className="accent-teal-600" />
-              Bike taxi to/from metro
+            <label className="flex items-center gap-1" title={party > 2 ? "Bike taxis carry one passenger, so they are skipped for groups of 3 or more" : undefined}>
+              <input
+                type="checkbox"
+                checked={bikeTaxi && party <= 2}
+                disabled={party > 2}
+                onChange={(e) => setBikeTaxi(e.target.checked)}
+                className="accent-teal-600 disabled:opacity-40"
+              />
+              <span className={party > 2 ? "text-[var(--color-muted)] line-through" : ""}>Bike taxi to/from metro</span>
             </label>
+            <div className="flex items-center gap-1" role="group" aria-label="Travellers">
+              <span>Travellers</span>
+              <button
+                type="button"
+                aria-label="Fewer travellers"
+                disabled={party <= 1}
+                onClick={() => setParty((n) => Math.max(1, n - 1))}
+                className="grid h-6 w-6 place-items-center rounded-md border border-[var(--color-line)] hover:border-slate-400 disabled:opacity-40 [@media(pointer:coarse)]:h-8 [@media(pointer:coarse)]:w-8"
+              >
+                −
+              </button>
+              <span className="w-4 text-center font-semibold tabular-nums" aria-live="polite">
+                {party}
+              </span>
+              <button
+                type="button"
+                aria-label="More travellers"
+                disabled={party >= 8}
+                onClick={() => setParty((n) => Math.min(8, n + 1))}
+                className="grid h-6 w-6 place-items-center rounded-md border border-[var(--color-line)] hover:border-slate-400 disabled:opacity-40 [@media(pointer:coarse)]:h-8 [@media(pointer:coarse)]:w-8"
+              >
+                +
+              </button>
+            </div>
           </div>
           {dayMode ? (
             <DayPanel
@@ -551,6 +585,11 @@ export default function Planner() {
                 </details>
               )}
 
+              {(plan.partySize ?? 1) > 1 && (
+                <p className="text-xs text-[var(--color-muted)]">
+                  Fares are for all {plan.partySize} travellers: per person on metro, bus and boat; per vehicle on autos and taxis.
+                </p>
+              )}
               {dayMode ? null : plan.options.length === 0 ? (
                 <p className="rounded-xl border border-[var(--color-line)] p-3 text-sm">No routes found for this trip.</p>
               ) : (

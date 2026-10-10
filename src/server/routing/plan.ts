@@ -14,7 +14,7 @@ import { computeTotals } from "@/lib/totals";
 import { haversine } from "@/server/geo";
 import { env } from "@/server/env";
 import { getNetwork, type LoadedNetwork } from "@/server/gtfs/load";
-import { FARES, fareFor, metroFare, busFare, ferryFare } from "./fares";
+import { FARES, fareFor, forParty, metroFare, busFare, ferryFare, vehiclesFor } from "./fares";
 import { orsDirections, type OrsProfile } from "./ors";
 import {
   raptor,
@@ -239,7 +239,7 @@ export const MODE_LABEL: Record<TransportMode, string> = {
 const fmtDist = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 
 /** Turns a candidate into timed schema segments. Returns null if a transit leg cannot be boarded. */
-function timeline(net: LoadedNetwork, c: Candidate, clock: ServiceClock, services: Set<string>): RouteSegment[] | null {
+function timeline(net: LoadedNetwork, c: Candidate, clock: ServiceClock, services: Set<string>, party = 1): RouteSegment[] | null {
   let t = clock.departSec;
   const segs: RouteSegment[] = [];
   c.legs.forEach((l, i) => {
@@ -258,9 +258,12 @@ function timeline(net: LoadedNetwork, c: Candidate, clock: ServiceClock, service
         durationSeconds: Math.round(l.seconds),
         waitSeconds: Math.round(l.waitSeconds),
         durationSource: l.durationSource,
-        costEstimate: fareFor(l.mode, l.distanceM),
+        costEstimate: forParty(l.mode, fareFor(l.mode, l.distanceM), party),
         distanceMeters: Math.round(l.distanceM),
-        instructions: [roadInstruction(l, next?.kind === "ride")],
+        instructions: [
+          roadInstruction(l, next?.kind === "ride"),
+          ...(vehiclesFor(l.mode, party) > 1 ? [`Your group of ${party} needs ${vehiclesFor(l.mode, party)} ${MODE_LABEL[l.mode].toLowerCase()}s.`] : []),
+        ],
         dataSource: l.dataSource,
         confidence: l.confidence,
       });
@@ -297,7 +300,7 @@ function timeline(net: LoadedNetwork, c: Candidate, clock: ServiceClock, service
       durationSeconds: Math.round(arrive - b.departAt),
       waitSeconds: Math.round(b.departAt - t),
       durationSource: isFreq ? "model_estimate" : "published_schedule",
-      costEstimate: cost,
+      costEstimate: forParty(mode, cost, party),
       distanceMeters: Math.round(distanceM),
       lineName: line,
       headsign: pat.headsign,
@@ -385,12 +388,14 @@ function toOption(net: LoadedNetwork, segs: RouteSegment[], idx: number, warning
   };
 }
 
-function directCandidates(origin: Place, dest: Place): Candidate[] {
+function directCandidates(origin: Place, dest: Place, bikeTaxi = true): Candidate[] {
   const d = haversine(origin.location, dest.location);
   const out: Candidate[] = [];
   if (d <= DIRECT_WALK_MAX_M) out.push({ legs: [estimateRoad("walking", origin, dest, true)] });
   if (d >= DIRECT_RIDE_MIN_M) {
-    for (const m of ["bike_taxi", "auto_rickshaw", "taxi"] as const) out.push({ legs: [estimateRoad(m, origin, dest, true)] });
+    for (const m of ["bike_taxi", "auto_rickshaw", "taxi"] as const) {
+      if (m !== "bike_taxi" || bikeTaxi) out.push({ legs: [estimateRoad(m, origin, dest, true)] });
+    }
   }
   return out;
 }
@@ -421,8 +426,17 @@ export async function planRoutes(req: RoutePlanRequest, deps: PlanDeps = {}): Pr
   const services = new Set(net.servicesByDow[clock.dow]);
   const origin: Place = { name: req.origin.name, location: req.origin.location };
   const dest: Place = { name: req.destination.name, location: req.destination.location };
-  const accessModes = (req.accessModes?.filter((m) => m !== "taxi") ?? ["walking", "bike_taxi"]) as AccessMode[];
+  const party = req.partySize ?? 1;
+  // Bike taxis carry one passenger; a group would need several, so they are left out for larger groups.
+  const bikeTaxiOk = party <= FARES.group.bikeTaxiMaxParty;
+  const requested = req.accessModes?.filter((m) => m !== "taxi") ?? ["walking", "bike_taxi"];
+  // For groups, an auto (3 seats) takes the bike taxi's place as the ride to and from transit.
+  const accessModes = [
+    ...new Set(requested.flatMap((m) => (m === "bike_taxi" && !bikeTaxiOk ? ["auto_rickshaw"] : [m]))),
+  ] as AccessMode[];
   const dataWarnings = new Set<string>();
+  if (!bikeTaxiOk) dataWarnings.add(`Bike taxis are left out for a group of ${party}; fares are for the whole group.`);
+  else if (party > 1) dataWarnings.add(`Fares are for the whole group of ${party}: per person on public transport, per vehicle on road rides.`);
   for (const p of net.provenance)
     if (p.expired) dataWarnings.add(`${p.name} expired on ${p.validUntil}; schedules are assumed to be typical, not current.`);
 
@@ -435,6 +449,7 @@ export async function planRoutes(req: RoutePlanRequest, deps: PlanDeps = {}): Pr
     liveData: false,
     mock: false,
     provenance: staticProvenance(net),
+    ...(party > 1 ? { partySize: party } : {}),
   };
 
   if (!inServiceArea(net, origin.location) || !inServiceArea(net, dest.location)) {
@@ -455,7 +470,7 @@ export async function planRoutes(req: RoutePlanRequest, deps: PlanDeps = {}): Pr
   }
   const pool = new Map<string, { c: Candidate; est: number }>();
   const consider = (c: Candidate) => {
-    const segs = timeline(net, c, clock, services);
+    const segs = timeline(net, c, clock, services, party);
     if (!segs) return;
     const est = computeTotals(segs).totalDurationSeconds;
     const sig = signature(net, c);
@@ -477,11 +492,11 @@ export async function planRoutes(req: RoutePlanRequest, deps: PlanDeps = {}): Pr
     for (const j of journeys) consider(fromRaptor(net, j, origin, dest));
   }
   const transitFound = pool.size > 0;
-  for (const c of directCandidates(origin, dest)) consider(c);
+  for (const c of directCandidates(origin, dest, bikeTaxiOk)) consider(c);
   if (!transitFound) dataWarnings.add("No public transport connection found for this trip and time; showing direct options only.");
 
   // 2. Pre-rank on estimates, keep a shortlist, refine road legs with ORS, then re-time and re-rank.
-  const prelim = [...pool.values()].map(({ c }, i) => ({ c, opt: toOption(net, timeline(net, c, clock, services)!, i, []) }));
+  const prelim = [...pool.values()].map(({ c }, i) => ({ c, opt: toOption(net, timeline(net, c, clock, services, party)!, i, []) }));
   const shortlist = rankOptions(
     prelim.map((p) => p.opt),
     7,
@@ -493,7 +508,7 @@ export async function planRoutes(req: RoutePlanRequest, deps: PlanDeps = {}): Pr
 
   const finals: RouteOption[] = [];
   shortlist.forEach((p, i) => {
-    const segs = timeline(net, p.c, clock, services);
+    const segs = timeline(net, p.c, clock, services, party);
     if (segs) finals.push(toOption(net, segs, i, []));
   });
   orsWarnings.forEach((w) => dataWarnings.add(w));

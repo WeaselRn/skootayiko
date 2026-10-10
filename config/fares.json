@@ -55,6 +55,12 @@
     "boardingBufferSeconds": { "metro": 180, "bus": 60, "ferry": 300 },
     "basis": "Bus feed headways are a uniform 60-minute placeholder; an assumed 20-minute headway (10-minute expected wait) is used instead."
   },
+  "group": {
+    "seats": { "bike_taxi": 1, "auto_rickshaw": 3, "taxi": 4 },
+    "bikeTaxiMaxParty": 2,
+    "basis": "Groups: public transport is charged per person; road rides need enough vehicles (bike taxi 1 passenger, auto 3, hatchback taxi 4). Bike taxis are not offered for groups of 3 or more.",
+    "verify": "Seat counts are typical; larger cabs (SUV, 6-7 seats) are not modelled"
+  },
   "ranking": {
     "valueOfTimeInrPerMinute": 2,
     "transferPenaltySeconds": 300,

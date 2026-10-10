@@ -7,6 +7,9 @@ import { z } from "zod";
  */
 export const SCHEMA_VERSION = "1.0" as const;
 
+/** Largest group the planner prices. */
+export const MAX_PARTY = 10;
+
 /** Max intermediate stops between origin and destination. */
 export const MAX_VIA = 8;
 
@@ -133,6 +136,8 @@ export const RoutePlanResponse = z.object({
   liveData: z.boolean(),
   /** True when the response comes from hand-made fixtures. */
   mock: z.boolean().default(false),
+  /** Travellers the fares are for (absent = 1). */
+  partySize: z.number().int().min(1).optional(),
   options: z.array(RouteOption),
   provenance: z.array(DataProvenance),
   dataWarnings: z.array(z.string()).optional(),
@@ -158,5 +163,7 @@ export const RoutePlanRequest = z.object({
   departAt: z.string().optional(),
   /** Restrict first/last mile modes. */
   accessModes: z.array(z.enum(["walking", "bike_taxi", "taxi", "auto_rickshaw"])).optional(),
+  /** Travellers in the group (default 1). Fares are for the whole group; bike taxis are skipped for 3+. */
+  partySize: z.number().int().min(1).max(MAX_PARTY).optional(),
 });
 export type RoutePlanRequest = z.infer<typeof RoutePlanRequest>;

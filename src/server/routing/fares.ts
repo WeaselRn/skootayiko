@@ -66,6 +66,27 @@ export function fareFor(mode: TransportMode, distanceM: number): CostEstimate | 
   }
 }
 
+const PER_PERSON = new Set<TransportMode>(["metro", "bus", "ferry", "train"]);
+const SEATS = FARES.group.seats as Partial<Record<TransportMode, number>>;
+
+/** Vehicles a group of `party` needs for a road ride (1 for transit and walking). */
+export function vehiclesFor(mode: TransportMode, party: number): number {
+  const seats = SEATS[mode];
+  return seats ? Math.ceil(Math.max(1, party) / seats) : 1;
+}
+
+/**
+ * Cost for the whole group: public transport per person, road rides per vehicle needed.
+ * Walking stays free. Returns the input unchanged for one traveller.
+ */
+export function forParty(mode: TransportMode, cost: CostEstimate | undefined, party: number): CostEstimate | undefined {
+  if (!cost || party <= 1 || cost.max === 0) return cost;
+  const n = PER_PERSON.has(mode) ? party : vehiclesFor(mode, party);
+  if (n === 1) return { ...cost, basis: `${cost.basis ?? ""} (one vehicle for ${party} people)`.trim() };
+  const what = PER_PERSON.has(mode) ? `x ${party} people` : `x ${n} vehicles for ${party} people`;
+  return { ...cost, min: cost.min * n, max: cost.max * n, basis: `${cost.basis ?? ""} ${what}`.trim() };
+}
+
 const SOURCE_RANK: EstimateSource[] = ["live", "published_schedule", "provider_estimate", "model_estimate", "fallback"];
 
 /** The least reliable source among the inputs. */

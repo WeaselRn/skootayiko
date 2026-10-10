@@ -11,6 +11,7 @@ export const INTEREST_DEFAULTS: Record<string, { dwellMin: number; base: number 
   nature: { dwellMin: 40, base: 0.45 },
   fun: { dwellMin: 90, base: 0.5 },
   worship: { dwellMin: 20, base: 0.4 },
+  food: { dwellMin: 45, base: 0.45 },
 };
 
 /** Finer-grained dwell for some OSM kinds (spaces replace underscores, as in Suggestion.kind). */
@@ -27,6 +28,7 @@ const KIND_DWELL: Record<string, number> = {
   "theme park": 180,
   zoo: 120,
   aquarium: 60,
+  cafe: 30,
 };
 
 export const PACE_FACTOR = { relaxed: 1.3, normal: 1, packed: 0.75 } as const;

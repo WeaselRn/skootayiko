@@ -26,7 +26,7 @@ const cacheKey = (r: RoutePlanRequest) => {
   // Departure rounded to 5 minutes so nearby requests share a cache entry.
   const t = Math.floor((r.departAt ? Date.parse(r.departAt) : Date.now()) / 300_000);
   const via = (r.via ?? []).map((v) => `${c(v.location)}+${v.dwellMin ?? 0}`).join(";");
-  return `${c(r.origin.location)}|${via}|${c(r.destination.location)}|${t}|${(r.accessModes ?? []).join(",")}`;
+  return `${c(r.origin.location)}|${via}|${c(r.destination.location)}|${t}|${(r.accessModes ?? []).join(",")}|${r.partySize ?? 1}`;
 };
 
 export async function POST(req: Request) {
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.issues }, { status: 400 });
   }
 
-  if (env.USE_MOCK_ROUTES && !parsed.data.via?.length) {
+  if (env.USE_MOCK_ROUTES && !parsed.data.via?.length && (parsed.data.partySize ?? 1) === 1) {
     const sample = pickFixture(parsed.data);
     if (sample) return NextResponse.json(sample);
   }

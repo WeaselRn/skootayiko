@@ -93,18 +93,21 @@ export async function suggestAlongRoute(input: SuggestInput): Promise<{ suggesti
   if (!env.LOCATIONIQ_API_KEY) throw new SuggestError("Place suggestions are not configured (LOCATIONIQ_API_KEY missing)", 503);
   const wanted = INTERESTS.filter((i) => input.interests.includes(i.id));
   if (!wanted.length) return { suggestions: [], partial: false };
-  const tags = wanted.flatMap((i) => i.tags);
+  const food = wanted.filter((i) => i.id === "food").flatMap((i) => i.tags);
+  const other = wanted.filter((i) => i.id !== "food").flatMap((i) => i.tags);
+  // Restaurants are dense; querying them on their own keeps them from filling the 50-result cap meant for sights.
+  const tagGroups = [other, food].filter((g) => g.length);
 
   const line = input.path && input.path.length >= 2 ? input.path : input.stops;
   let length = 0;
   for (let i = 1; i < line.length; i++) length += haversine(line[i - 1], line[i]);
-  const step = Math.max(MIN_STEP_M, length / (MAX_CALLS - 1));
+  const step = Math.max(MIN_STEP_M, length / (Math.floor(MAX_CALLS / tagGroups.length) - 1));
   const samples = samplePolyline(line, step);
   const radius = Math.min(MAX_RADIUS_M, Math.hypot(step / 2, input.maxOffRouteM) + 100);
 
   const found = new Map<string, LiqNearby>();
   let partial = false;
-  const batch = await Promise.allSettled(samples.map((s) => nearby(s, radius, tags)));
+  const batch = await Promise.allSettled(tagGroups.flatMap((tags) => samples.map((s) => nearby(s, radius, tags))));
   for (const r of batch) {
     if (r.status === "fulfilled") for (const it of r.value) found.set(it.place_id, it);
     else {
@@ -121,7 +124,7 @@ export async function suggestAlongRoute(input: SuggestInput): Promise<{ suggesti
     const interest = interestOf(it.class ?? "", it.type ?? "", wanted);
     if (!name || !interest) continue;
     if (interest === "nature" && NOISE.test(name)) continue;
-    if (LODGING.test(name)) continue;
+    if (interest !== "food" && LODGING.test(name)) continue;
     const location = { lat: Number(it.lat), lon: Number(it.lon) };
     const off = distanceToPolyline(location, line).meters;
     if (off > input.maxOffRouteM) continue;
@@ -158,5 +161,7 @@ export async function suggestAlongRoute(input: SuggestInput): Promise<{ suggesti
     );
     if (!dup) deduped.push(s);
   }
-  return { suggestions: deduped.slice(0, 18), partial };
+  let foodLeft = 6;
+  const varied = deduped.filter((s) => s.interest !== "food" || foodLeft-- > 0);
+  return { suggestions: varied.slice(0, 18), partial };
 }

@@ -24,6 +24,10 @@ export const LUNCH_MIN = 45;
 /** Lunch is taken after the first visit ending in this window, else on arrival at the end. */
 const LUNCH_FROM = hhmm("12:00");
 const LUNCH_UNTIL = hhmm("15:00");
+/** A restaurant visit starting in this window is the lunch break itself. */
+const MEAL_FROM = hhmm("11:30");
+/** At most this many restaurant/café stops in a day. */
+const MAX_FOOD_STOPS = 2;
 /** Straight-line model is optimistic; pad it so the real router rarely overruns. */
 const APPROX_MARGIN = 1.1;
 const WALK_MAX_M = 1500;
@@ -65,6 +69,8 @@ export interface Visit {
   waitSec: number;
   /** Lunch break taken right after this visit. */
   lunchAfter: boolean;
+  /** This restaurant visit is the lunch break (no separate break added). */
+  meal?: boolean;
 }
 
 export interface Schedule {
@@ -124,7 +130,11 @@ function prepare(input: SolveInput) {
     const visits: Visit[] = [];
     const fail = (why: Schedule["why"]): Schedule => ({ ok: false, why, visits, endSec: t, arriveEndSec: t, lunchAtEnd: false, value });
     if (order.length > maxStops) return fail("stops");
-    for (const c of order) {
+    const isFood = (c: number | undefined) => c !== undefined && candidates[c].interest === "food";
+    if (order.filter(isFood).length > MAX_FOOD_STOPS) return fail("stops");
+    // Two restaurant/café stops in a row is not a sightseeing day.
+    if (order.some((c, i) => i > 0 && isFood(c) && isFood(order[i - 1]))) return fail("stops");
+    for (const [i, c] of order.entries()) {
       t += T[prev][c + 1];
       const arrive = t;
       const w = windows[c].find(([o, cl]) => Math.max(arrive, o) + dwell[c] <= cl);
@@ -133,8 +143,11 @@ function prepare(input: SolveInput) {
       t = start + dwell[c];
       const sunsetHit = candidates[c].sunset && start < SUNSET_WINDOW[1] && t > SUNSET_WINDOW[0];
       value += worth[c] * (sunsetHit ? SUNSET_BONUS : 1);
-      const lunchAfter = !lunchDone && t >= LUNCH_FROM && t <= LUNCH_UNTIL;
-      visits.push({ id: candidates[c].id, arriveSec: arrive, startSec: start, leaveSec: t, waitSec: start - arrive, lunchAfter });
+      const meal = !lunchDone && candidates[c].interest === "food" && start >= MEAL_FROM && start <= LUNCH_UNTIL;
+      if (meal) lunchDone = true;
+      // If a restaurant comes next, that visit is lunch; no separate break here.
+      const lunchAfter = !lunchDone && t >= LUNCH_FROM && t <= LUNCH_UNTIL && !isFood(order[i + 1]);
+      visits.push({ id: candidates[c].id, arriveSec: arrive, startSec: start, leaveSec: t, waitSec: start - arrive, lunchAfter, ...(meal ? { meal } : {}) });
       if (lunchAfter) {
         t += LUNCH_MIN * 60;
         lunchDone = true;

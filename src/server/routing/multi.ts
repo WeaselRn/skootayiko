@@ -51,7 +51,7 @@ export async function planJourney(req: RoutePlanRequest, deps: PlanDeps = {}): P
     const key = `${i}|${departAt ?? "now"}`;
     let p = cache.get(key);
     if (!p) {
-      p = planRoutes({ origin: stops[i], destination: stops[i + 1], departAt, accessModes: req.accessModes }, deps);
+      p = planRoutes({ origin: stops[i], destination: stops[i + 1], departAt, accessModes: req.accessModes, partySize: req.partySize }, deps);
       cache.set(key, p);
     }
     return p;
