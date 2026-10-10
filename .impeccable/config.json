@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "src/components/player/RideHud.tsx"
+        ],
+        "createdAt": "2026-10-10T15:54:05.969Z",
+        "reason": "agent decision: L33 is the <Kbd> keycap; border-b-2 is a neutral slate bevel imitating a physical key, not an accent stripe"
+      }
+    ]
+  }
+}
