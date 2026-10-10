@@ -1,17 +1,35 @@
 import { planRoutes } from "@/server/routing/plan";
 const trips = [
-  ["Aluva", 10.1076, 76.3516, "Vyttila Hub", 9.9673, 76.3215],
-  ["Kalamassery", 10.0530, 76.3270, "Infopark", 10.0152, 76.3636],
-  ["Fort Kochi", 9.9658, 76.2421, "Vypin", 9.9760, 76.2420],
-  ["MG Road", 9.9700, 76.2800, "Kakkanad", 10.0159, 76.3419],
+  ["Edappally", 10.0255, 76.308, "MG Road", 9.97, 76.28],
+  ["Kakkanad", 10.0159, 76.3419, "Vyttila", 9.9673, 76.3215],
+  ["Fort Kochi", 9.9658, 76.2421, "Ernakulam South", 9.9686, 76.2896],
+  ["Aluva", 10.1076, 76.3516, "Kalamassery", 10.053, 76.327],
+  ["Kaloor", 9.9943, 76.2914, "Palarivattom", 10.0064, 76.3048],
 ] as const;
-const useOrs = process.argv.includes("--ors");
-for (const [on, olat, olon, dn, dlat, dlon] of trips) {
-  const t0 = Date.now();
-  const r = await planRoutes({ origin: { name: on, location: { lat: olat, lon: olon } }, destination: { name: dn, location: { lat: dlat, lon: dlon } }, departAt: "2026-10-12T08:30:00+05:30" }, { useOrs });
-  console.log(`\n== ${on} -> ${dn} (${Date.now() - t0} ms) warnings=${r.dataWarnings?.length}`);
-  for (const o of r.options) {
-    console.log(`  [${o.rankings.join(",")}] ${o.label}: ${Math.round(o.totalDurationSeconds / 60)} min, ₹${o.totalCostEstimate?.min}-${o.totalCostEstimate?.max}, transfers=${o.transfers}`);
-    for (const s of o.segments) console.log(`     ${s.mode} ${s.origin.name} -> ${s.destination.name} ${Math.round(s.durationSeconds/60)}m +wait ${Math.round(s.waitSeconds/60)}m ${s.distanceMeters}m geom=${s.geometry.length} ₹${s.costEstimate?.min}-${s.costEstimate?.max} ${s.dataSource}`);
+const times = process.argv.slice(2).filter((a) => a.includes("T"));
+for (const at of times.length ? times : ["2026-10-12T09:00:00+05:30", "2026-10-12T22:30:00+05:30"]) {
+  console.log(`\n##### depart ${at}`);
+  for (const [on, olat, olon, dn, dlat, dlon] of trips) {
+    const r = await planRoutes({ origin: { name: on, location: { lat: olat, lon: olon } }, destination: { name: dn, location: { lat: dlat, lon: dlon } }, departAt: at }, { useOrs: false });
+    console.log(`== ${on} -> ${dn}: ` + r.options.map((o) => `[${o.rankings.join(",")}] ${o.label} ${Math.round(o.totalDurationSeconds / 60)}m ₹${o.totalCostEstimate?.min}-${o.totalCostEstimate?.max}`).join(" | "));
   }
+}
+
+// Day planner: Fort Kochi → Ernakulam South with 3 h and 5 h.
+const { planDay } = await import("@/server/routing/dayplan");
+const { ItineraryRequest } = await import("@/schema/itinerary");
+for (const budgetMin of [180, 300]) {
+  const d = await planDay(
+    ItineraryRequest.parse({
+      start: { name: "Fort Kochi Jetty", location: { lat: 9.9667, lon: 76.2434 } },
+      end: { name: "Ernakulam South", location: { lat: 9.9686, lon: 76.2896 } },
+      startAt: "2026-10-12T09:00:00+05:30",
+      budgetMin,
+      interests: ["sights", "heritage", "museums", "beaches"],
+      lunch: true,
+    }),
+    { useOrs: false, suggest: null },
+  );
+  console.log(`\n== day ${budgetMin / 60}h: ${d.usedMin}/${d.budgetMin} min fits=${d.fits} score=${d.totalScore} :: ${d.stops.map((s) => s.name).join(" > ")}`);
+  console.log(`   left out: ${d.dropped.map((x) => `${x.sight.name} (${x.reason})`).join(", ")}`);
 }

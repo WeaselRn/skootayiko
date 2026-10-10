@@ -20,7 +20,7 @@
  "mock": true,
  "options": [
   {
-   "id": "opt-2",
+   "id": "opt-1",
    "label": "Bike taxi",
    "rankings": [
     "fastest"
@@ -962,566 +962,10 @@
    "warnings": []
   },
   {
-   "id": "opt-1",
-   "label": "Bus",
-   "rankings": [
-    "cheapest"
-   ],
-   "totalDurationSeconds": 4052,
-   "totalWaitSeconds": 660,
-   "totalDistanceMeters": 17772,
-   "totalCostEstimate": {
-    "min": 25,
-    "max": 26,
-    "currency": "INR",
-    "source": "model_estimate"
-   },
-   "segments": [
-    {
-     "id": "s0",
-     "mode": "walking",
-     "origin": {
-      "name": "Aluva",
-      "location": {
-       "lat": 10.1076,
-       "lon": 76.3516
-      },
-      "departureTime": "2026-10-12T08:30:00+05:30"
-     },
-     "destination": {
-      "id": "bus:n9318037198",
-      "name": "Karothukuzhi",
-      "location": {
-       "lat": 10.1050301,
-       "lon": 76.3512495
-      },
-      "arrivalTime": "2026-10-12T08:34:44+05:30"
-     },
-     "geometry": [
-      {
-       "lat": 10.107603,
-       "lon": 76.351744
-      },
-      {
-       "lat": 10.107089,
-       "lon": 76.351753
-      },
-      {
-       "lat": 10.106978,
-       "lon": 76.351702
-      },
-      {
-       "lat": 10.106806,
-       "lon": 76.351476
-      },
-      {
-       "lat": 10.106336,
-       "lon": 76.351483
-      },
-      {
-       "lat": 10.106196,
-       "lon": 76.351515
-      },
-      {
-       "lat": 10.106159,
-       "lon": 76.351483
-      },
-      {
-       "lat": 10.106116,
-       "lon": 76.351247
-      },
-      {
-       "lat": 10.106116,
-       "lon": 76.350772
-      },
-      {
-       "lat": 10.105883,
-       "lon": 76.350749
-      },
-      {
-       "lat": 10.105787,
-       "lon": 76.35076
-      },
-      {
-       "lat": 10.105707,
-       "lon": 76.350788
-      },
-      {
-       "lat": 10.105624,
-       "lon": 76.350842
-      },
-      {
-       "lat": 10.1055,
-       "lon": 76.351015
-      },
-      {
-       "lat": 10.105447,
-       "lon": 76.351065
-      },
-      {
-       "lat": 10.105323,
-       "lon": 76.351125
-      },
-      {
-       "lat": 10.105032,
-       "lon": 76.351228
-      },
-      {
-       "lat": 10.105025,
-       "lon": 76.351247
-      }
-     ],
-     "durationSeconds": 284,
-     "waitSeconds": 0,
-     "durationSource": "provider_estimate",
-     "costEstimate": {
-      "min": 0,
-      "max": 0,
-      "currency": "INR",
-      "source": "model_estimate",
-      "basis": "No fare"
-     },
-     "distanceMeters": 395,
-     "instructions": [
-      "Walk 390 m to Karothukuzhi stop."
-     ],
-     "dataSource": "ors:foot-walking",
-     "confidence": "medium"
-    },
-    {
-     "id": "s1",
-     "mode": "bus",
-     "origin": {
-      "id": "bus:n9318037198",
-      "name": "Karothukuzhi",
-      "location": {
-       "lat": 10.1050301,
-       "lon": 76.3512495
-      },
-      "departureTime": "2026-10-12T08:45:44+05:30"
-     },
-     "destination": {
-      "id": "bus:n9280367800",
-      "name": "Vyttila",
-      "location": {
-       "lat": 9.9679683,
-       "lon": 76.3219424
-      },
-      "arrivalTime": "2026-10-12T09:36:35+05:30"
-     },
-     "geometry": [
-      {
-       "lat": 10.1050301,
-       "lon": 76.3512495
-      },
-      {
-       "lat": 10.105032,
-       "lon": 76.351228
-      },
-      {
-       "lat": 10.104835,
-       "lon": 76.351198
-      },
-      {
-       "lat": 10.104467,
-       "lon": 76.350996
-      },
-      {
-       "lat": 10.103983,
-       "lon": 76.350489
-      },
-      {
-       "lat": 10.100935,
-       "lon": 76.349088
-      },
-      {
-       "lat": 10.100473,
-       "lon": 76.348725
-      },
-      {
-       "lat": 10.099714,
-       "lon": 76.347959
-      },
-      {
-       "lat": 10.099,
-       "lon": 76.347423
-      },
-      {
-       "lat": 10.098288,
-       "lon": 76.34714
-      },
-      {
-       "lat": 10.097384,
-       "lon": 76.346911
-      },
-      {
-       "lat": 10.095297,
-       "lon": 76.346682
-      },
-      {
-       "lat": 10.09376,
-       "lon": 76.346327
-      },
-      {
-       "lat": 10.092477,
-       "lon": 76.345831
-      },
-      {
-       "lat": 10.091765,
-       "lon": 76.345482
-      },
-      {
-       "lat": 10.087323,
-       "lon": 76.342892
-      },
-      {
-       "lat": 10.082962,
-       "lon": 76.340431
-      },
-      {
-       "lat": 10.081492,
-       "lon": 76.339748
-      },
-      {
-       "lat": 10.078004,
-       "lon": 76.338473
-      },
-      {
-       "lat": 10.077136,
-       "lon": 76.338048
-      },
-      {
-       "lat": 10.076671,
-       "lon": 76.337657
-      },
-      {
-       "lat": 10.074301,
-       "lon": 76.335203
-      },
-      {
-       "lat": 10.07354,
-       "lon": 76.33443
-      },
-      {
-       "lat": 10.071464,
-       "lon": 76.332715
-      },
-      {
-       "lat": 10.070455,
-       "lon": 76.331727
-      },
-      {
-       "lat": 10.068047,
-       "lon": 76.329348
-      },
-      {
-       "lat": 10.065835,
-       "lon": 76.327638
-      },
-      {
-       "lat": 10.065338,
-       "lon": 76.327407
-      },
-      {
-       "lat": 10.063932,
-       "lon": 76.326527
-      },
-      {
-       "lat": 10.063014,
-       "lon": 76.32559
-      },
-      {
-       "lat": 10.062453,
-       "lon": 76.324627
-      },
-      {
-       "lat": 10.061677,
-       "lon": 76.323672
-      },
-      {
-       "lat": 10.060774,
-       "lon": 76.322913
-      },
-      {
-       "lat": 10.05995,
-       "lon": 76.322473
-      },
-      {
-       "lat": 10.057944,
-       "lon": 76.321786
-      },
-      {
-       "lat": 10.056738,
-       "lon": 76.321397
-      },
-      {
-       "lat": 10.055341,
-       "lon": 76.321799
-      },
-      {
-       "lat": 10.054587,
-       "lon": 76.321813
-      },
-      {
-       "lat": 10.053687,
-       "lon": 76.32156
-      },
-      {
-       "lat": 10.052946,
-       "lon": 76.321135
-      },
-      {
-       "lat": 10.05265,
-       "lon": 76.320862
-      },
-      {
-       "lat": 10.052225,
-       "lon": 76.320065
-      },
-      {
-       "lat": 10.051991,
-       "lon": 76.319879
-      },
-      {
-       "lat": 10.048806,
-       "lon": 76.318922
-      },
-      {
-       "lat": 10.047217,
-       "lon": 76.318447
-      },
-      {
-       "lat": 10.044534,
-       "lon": 76.317586
-      },
-      {
-       "lat": 10.041172,
-       "lon": 76.316567
-      },
-      {
-       "lat": 10.03843,
-       "lon": 76.315468
-      },
-      {
-       "lat": 10.033316,
-       "lon": 76.3131
-      },
-      {
-       "lat": 10.029809,
-       "lon": 76.311053
-      },
-      {
-       "lat": 10.024985,
-       "lon": 76.308341
-      },
-      {
-       "lat": 10.024496,
-       "lon": 76.308251
-      },
-      {
-       "lat": 10.024169,
-       "lon": 76.308388
-      },
-      {
-       "lat": 10.022653,
-       "lon": 76.309597
-      },
-      {
-       "lat": 10.021708,
-       "lon": 76.310103
-      },
-      {
-       "lat": 10.020723,
-       "lon": 76.310487
-      },
-      {
-       "lat": 10.01974,
-       "lon": 76.310718
-      },
-      {
-       "lat": 10.014669,
-       "lon": 76.311497
-      },
-      {
-       "lat": 10.008538,
-       "lon": 76.312505
-      },
-      {
-       "lat": 10.008296,
-       "lon": 76.312619
-      },
-      {
-       "lat": 10.004094,
-       "lon": 76.313323
-      },
-      {
-       "lat": 10.001682,
-       "lon": 76.313705
-      },
-      {
-       "lat": 10.001471,
-       "lon": 76.313639
-      },
-      {
-       "lat": 9.99919,
-       "lon": 76.314004
-      },
-      {
-       "lat": 9.997099,
-       "lon": 76.314348
-      },
-      {
-       "lat": 9.992942,
-       "lon": 76.315058
-      },
-      {
-       "lat": 9.989319,
-       "lon": 76.315694
-      },
-      {
-       "lat": 9.987559,
-       "lon": 76.315989
-      },
-      {
-       "lat": 9.978926,
-       "lon": 76.317345
-      },
-      {
-       "lat": 9.971559,
-       "lon": 76.318073
-      },
-      {
-       "lat": 9.971433,
-       "lon": 76.318152
-      },
-      {
-       "lat": 9.969955,
-       "lon": 76.31831
-      },
-      {
-       "lat": 9.96875,
-       "lon": 76.318377
-      },
-      {
-       "lat": 9.968763,
-       "lon": 76.318452
-      },
-      {
-       "lat": 9.969173,
-       "lon": 76.319777
-      },
-      {
-       "lat": 9.970109,
-       "lon": 76.321083
-      },
-      {
-       "lat": 9.96824,
-       "lon": 76.321829
-      },
-      {
-       "lat": 9.968047,
-       "lon": 76.321843
-      },
-      {
-       "lat": 9.9679683,
-       "lon": 76.3219424
-      }
-     ],
-     "durationSeconds": 3051,
-     "waitSeconds": 660,
-     "durationSource": "model_estimate",
-     "costEstimate": {
-      "min": 25,
-      "max": 26,
-      "currency": "INR",
-      "source": "model_estimate",
-      "basis": "Kerala ordinary bus fare structure (minimum fare + per-km), approximate"
-     },
-     "distanceMeters": 17298,
-     "instructions": [
-      "Board the bus towards Chottanikkara at Karothukuzhi.",
-      "Ride 27 stops and get off at Vyttila.",
-      "Departure time is an estimate (assumed 10-min average wait)."
-     ],
-     "lineName": "Aluva ↔ Chottanikkara (via Bypass)",
-     "headsign": "Chottanikkara",
-     "dataSource": "gtfs:bus",
-     "confidence": "low"
-    },
-    {
-     "id": "s2",
-     "mode": "walking",
-     "origin": {
-      "id": "bus:n9280367800",
-      "name": "Vyttila",
-      "location": {
-       "lat": 9.9679683,
-       "lon": 76.3219424
-      },
-      "departureTime": "2026-10-12T09:36:35+05:30"
-     },
-     "destination": {
-      "name": "Vyttila Hub",
-      "location": {
-       "lat": 9.9673,
-       "lon": 76.3215
-      },
-      "arrivalTime": "2026-10-12T09:37:32+05:30"
-     },
-     "geometry": [
-      {
-       "lat": 9.967998,
-       "lon": 76.32183
-      },
-      {
-       "lat": 9.967917,
-       "lon": 76.321807
-      },
-      {
-       "lat": 9.96768,
-       "lon": 76.321686
-      },
-      {
-       "lat": 9.967477,
-       "lon": 76.321447
-      },
-      {
-       "lat": 9.967462,
-       "lon": 76.321416
-      }
-     ],
-     "durationSeconds": 57,
-     "waitSeconds": 0,
-     "durationSource": "provider_estimate",
-     "costEstimate": {
-      "min": 0,
-      "max": 0,
-      "currency": "INR",
-      "source": "model_estimate",
-      "basis": "No fare"
-     },
-     "distanceMeters": 79,
-     "instructions": [
-      "Walk 80 m to Vyttila Hub."
-     ],
-     "dataSource": "ors:foot-walking",
-     "confidence": "medium"
-    }
-   ],
-   "transfers": 0,
-   "assumptions": [
-    "Bus feed headways are a uniform 60-minute placeholder; an assumed 20-minute headway (10-minute expected wait) is used instead.",
-    "Bus fare is an approximate range, not a quote."
-   ],
-   "warnings": [
-    "Bus routes come from 2022–23 community data and may have changed."
-   ]
-  },
-  {
    "id": "opt-0",
    "label": "Metro",
    "rankings": [
-    "alternative"
+    "cheapest"
    ],
    "totalDurationSeconds": 3457,
    "totalWaitSeconds": 557,
@@ -2218,7 +1662,7 @@
    "warnings": []
   },
   {
-   "id": "opt-3",
+   "id": "opt-2",
    "label": "Auto",
    "rankings": [
     "alternative"
@@ -3160,7 +2604,7 @@
    "warnings": []
   },
   {
-   "id": "opt-4",
+   "id": "opt-3",
    "label": "Taxi",
    "rankings": [
     "alternative"
@@ -4100,6 +3544,562 @@
     "Taxi fare is an approximate range, not a quote."
    ],
    "warnings": []
+  },
+  {
+   "id": "opt-4",
+   "label": "Bus",
+   "rankings": [
+    "alternative"
+   ],
+   "totalDurationSeconds": 4052,
+   "totalWaitSeconds": 660,
+   "totalDistanceMeters": 17772,
+   "totalCostEstimate": {
+    "min": 146,
+    "max": 146,
+    "currency": "INR",
+    "source": "model_estimate"
+   },
+   "segments": [
+    {
+     "id": "s0",
+     "mode": "walking",
+     "origin": {
+      "name": "Aluva",
+      "location": {
+       "lat": 10.1076,
+       "lon": 76.3516
+      },
+      "departureTime": "2026-10-12T08:30:00+05:30"
+     },
+     "destination": {
+      "id": "bus:n9318037198",
+      "name": "Karothukuzhi",
+      "location": {
+       "lat": 10.1050301,
+       "lon": 76.3512495
+      },
+      "arrivalTime": "2026-10-12T08:34:44+05:30"
+     },
+     "geometry": [
+      {
+       "lat": 10.107603,
+       "lon": 76.351744
+      },
+      {
+       "lat": 10.107089,
+       "lon": 76.351753
+      },
+      {
+       "lat": 10.106978,
+       "lon": 76.351702
+      },
+      {
+       "lat": 10.106806,
+       "lon": 76.351476
+      },
+      {
+       "lat": 10.106336,
+       "lon": 76.351483
+      },
+      {
+       "lat": 10.106196,
+       "lon": 76.351515
+      },
+      {
+       "lat": 10.106159,
+       "lon": 76.351483
+      },
+      {
+       "lat": 10.106116,
+       "lon": 76.351247
+      },
+      {
+       "lat": 10.106116,
+       "lon": 76.350772
+      },
+      {
+       "lat": 10.105883,
+       "lon": 76.350749
+      },
+      {
+       "lat": 10.105787,
+       "lon": 76.35076
+      },
+      {
+       "lat": 10.105707,
+       "lon": 76.350788
+      },
+      {
+       "lat": 10.105624,
+       "lon": 76.350842
+      },
+      {
+       "lat": 10.1055,
+       "lon": 76.351015
+      },
+      {
+       "lat": 10.105447,
+       "lon": 76.351065
+      },
+      {
+       "lat": 10.105323,
+       "lon": 76.351125
+      },
+      {
+       "lat": 10.105032,
+       "lon": 76.351228
+      },
+      {
+       "lat": 10.105025,
+       "lon": 76.351247
+      }
+     ],
+     "durationSeconds": 284,
+     "waitSeconds": 0,
+     "durationSource": "provider_estimate",
+     "costEstimate": {
+      "min": 0,
+      "max": 0,
+      "currency": "INR",
+      "source": "model_estimate",
+      "basis": "No fare"
+     },
+     "distanceMeters": 395,
+     "instructions": [
+      "Walk 390 m to Karothukuzhi stop."
+     ],
+     "dataSource": "ors:foot-walking",
+     "confidence": "medium"
+    },
+    {
+     "id": "s1",
+     "mode": "bus",
+     "origin": {
+      "id": "bus:n9318037198",
+      "name": "Karothukuzhi",
+      "location": {
+       "lat": 10.1050301,
+       "lon": 76.3512495
+      },
+      "departureTime": "2026-10-12T08:45:44+05:30"
+     },
+     "destination": {
+      "id": "bus:n9280367800",
+      "name": "Vyttila",
+      "location": {
+       "lat": 9.9679683,
+       "lon": 76.3219424
+      },
+      "arrivalTime": "2026-10-12T09:36:35+05:30"
+     },
+     "geometry": [
+      {
+       "lat": 10.1050301,
+       "lon": 76.3512495
+      },
+      {
+       "lat": 10.105032,
+       "lon": 76.351228
+      },
+      {
+       "lat": 10.104835,
+       "lon": 76.351198
+      },
+      {
+       "lat": 10.104467,
+       "lon": 76.350996
+      },
+      {
+       "lat": 10.103983,
+       "lon": 76.350489
+      },
+      {
+       "lat": 10.100935,
+       "lon": 76.349088
+      },
+      {
+       "lat": 10.100473,
+       "lon": 76.348725
+      },
+      {
+       "lat": 10.099714,
+       "lon": 76.347959
+      },
+      {
+       "lat": 10.099,
+       "lon": 76.347423
+      },
+      {
+       "lat": 10.098288,
+       "lon": 76.34714
+      },
+      {
+       "lat": 10.097384,
+       "lon": 76.346911
+      },
+      {
+       "lat": 10.095297,
+       "lon": 76.346682
+      },
+      {
+       "lat": 10.09376,
+       "lon": 76.346327
+      },
+      {
+       "lat": 10.092477,
+       "lon": 76.345831
+      },
+      {
+       "lat": 10.091765,
+       "lon": 76.345482
+      },
+      {
+       "lat": 10.087323,
+       "lon": 76.342892
+      },
+      {
+       "lat": 10.082962,
+       "lon": 76.340431
+      },
+      {
+       "lat": 10.081492,
+       "lon": 76.339748
+      },
+      {
+       "lat": 10.078004,
+       "lon": 76.338473
+      },
+      {
+       "lat": 10.077136,
+       "lon": 76.338048
+      },
+      {
+       "lat": 10.076671,
+       "lon": 76.337657
+      },
+      {
+       "lat": 10.074301,
+       "lon": 76.335203
+      },
+      {
+       "lat": 10.07354,
+       "lon": 76.33443
+      },
+      {
+       "lat": 10.071464,
+       "lon": 76.332715
+      },
+      {
+       "lat": 10.070455,
+       "lon": 76.331727
+      },
+      {
+       "lat": 10.068047,
+       "lon": 76.329348
+      },
+      {
+       "lat": 10.065835,
+       "lon": 76.327638
+      },
+      {
+       "lat": 10.065338,
+       "lon": 76.327407
+      },
+      {
+       "lat": 10.063932,
+       "lon": 76.326527
+      },
+      {
+       "lat": 10.063014,
+       "lon": 76.32559
+      },
+      {
+       "lat": 10.062453,
+       "lon": 76.324627
+      },
+      {
+       "lat": 10.061677,
+       "lon": 76.323672
+      },
+      {
+       "lat": 10.060774,
+       "lon": 76.322913
+      },
+      {
+       "lat": 10.05995,
+       "lon": 76.322473
+      },
+      {
+       "lat": 10.057944,
+       "lon": 76.321786
+      },
+      {
+       "lat": 10.056738,
+       "lon": 76.321397
+      },
+      {
+       "lat": 10.055341,
+       "lon": 76.321799
+      },
+      {
+       "lat": 10.054587,
+       "lon": 76.321813
+      },
+      {
+       "lat": 10.053687,
+       "lon": 76.32156
+      },
+      {
+       "lat": 10.052946,
+       "lon": 76.321135
+      },
+      {
+       "lat": 10.05265,
+       "lon": 76.320862
+      },
+      {
+       "lat": 10.052225,
+       "lon": 76.320065
+      },
+      {
+       "lat": 10.051991,
+       "lon": 76.319879
+      },
+      {
+       "lat": 10.048806,
+       "lon": 76.318922
+      },
+      {
+       "lat": 10.047217,
+       "lon": 76.318447
+      },
+      {
+       "lat": 10.044534,
+       "lon": 76.317586
+      },
+      {
+       "lat": 10.041172,
+       "lon": 76.316567
+      },
+      {
+       "lat": 10.03843,
+       "lon": 76.315468
+      },
+      {
+       "lat": 10.033316,
+       "lon": 76.3131
+      },
+      {
+       "lat": 10.029809,
+       "lon": 76.311053
+      },
+      {
+       "lat": 10.024985,
+       "lon": 76.308341
+      },
+      {
+       "lat": 10.024496,
+       "lon": 76.308251
+      },
+      {
+       "lat": 10.024169,
+       "lon": 76.308388
+      },
+      {
+       "lat": 10.022653,
+       "lon": 76.309597
+      },
+      {
+       "lat": 10.021708,
+       "lon": 76.310103
+      },
+      {
+       "lat": 10.020723,
+       "lon": 76.310487
+      },
+      {
+       "lat": 10.01974,
+       "lon": 76.310718
+      },
+      {
+       "lat": 10.014669,
+       "lon": 76.311497
+      },
+      {
+       "lat": 10.008538,
+       "lon": 76.312505
+      },
+      {
+       "lat": 10.008296,
+       "lon": 76.312619
+      },
+      {
+       "lat": 10.004094,
+       "lon": 76.313323
+      },
+      {
+       "lat": 10.001682,
+       "lon": 76.313705
+      },
+      {
+       "lat": 10.001471,
+       "lon": 76.313639
+      },
+      {
+       "lat": 9.99919,
+       "lon": 76.314004
+      },
+      {
+       "lat": 9.997099,
+       "lon": 76.314348
+      },
+      {
+       "lat": 9.992942,
+       "lon": 76.315058
+      },
+      {
+       "lat": 9.989319,
+       "lon": 76.315694
+      },
+      {
+       "lat": 9.987559,
+       "lon": 76.315989
+      },
+      {
+       "lat": 9.978926,
+       "lon": 76.317345
+      },
+      {
+       "lat": 9.971559,
+       "lon": 76.318073
+      },
+      {
+       "lat": 9.971433,
+       "lon": 76.318152
+      },
+      {
+       "lat": 9.969955,
+       "lon": 76.31831
+      },
+      {
+       "lat": 9.96875,
+       "lon": 76.318377
+      },
+      {
+       "lat": 9.968763,
+       "lon": 76.318452
+      },
+      {
+       "lat": 9.969173,
+       "lon": 76.319777
+      },
+      {
+       "lat": 9.970109,
+       "lon": 76.321083
+      },
+      {
+       "lat": 9.96824,
+       "lon": 76.321829
+      },
+      {
+       "lat": 9.968047,
+       "lon": 76.321843
+      },
+      {
+       "lat": 9.9679683,
+       "lon": 76.3219424
+      }
+     ],
+     "durationSeconds": 3051,
+     "waitSeconds": 660,
+     "durationSource": "model_estimate",
+     "costEstimate": {
+      "min": 146,
+      "max": 146,
+      "currency": "INR",
+      "source": "model_estimate",
+      "basis": "Project fare rule: ₹10 up to 1 km, then ₹8 for each further (started) km"
+     },
+     "distanceMeters": 17298,
+     "instructions": [
+      "Board the bus towards Chottanikkara at Karothukuzhi.",
+      "Ride 27 stops and get off at Vyttila.",
+      "Departure time is an estimate (assumed 10-min average wait)."
+     ],
+     "lineName": "Aluva ↔ Chottanikkara (via Bypass)",
+     "headsign": "Chottanikkara",
+     "dataSource": "gtfs:bus",
+     "confidence": "low"
+    },
+    {
+     "id": "s2",
+     "mode": "walking",
+     "origin": {
+      "id": "bus:n9280367800",
+      "name": "Vyttila",
+      "location": {
+       "lat": 9.9679683,
+       "lon": 76.3219424
+      },
+      "departureTime": "2026-10-12T09:36:35+05:30"
+     },
+     "destination": {
+      "name": "Vyttila Hub",
+      "location": {
+       "lat": 9.9673,
+       "lon": 76.3215
+      },
+      "arrivalTime": "2026-10-12T09:37:32+05:30"
+     },
+     "geometry": [
+      {
+       "lat": 9.967998,
+       "lon": 76.32183
+      },
+      {
+       "lat": 9.967917,
+       "lon": 76.321807
+      },
+      {
+       "lat": 9.96768,
+       "lon": 76.321686
+      },
+      {
+       "lat": 9.967477,
+       "lon": 76.321447
+      },
+      {
+       "lat": 9.967462,
+       "lon": 76.321416
+      }
+     ],
+     "durationSeconds": 57,
+     "waitSeconds": 0,
+     "durationSource": "provider_estimate",
+     "costEstimate": {
+      "min": 0,
+      "max": 0,
+      "currency": "INR",
+      "source": "model_estimate",
+      "basis": "No fare"
+     },
+     "distanceMeters": 79,
+     "instructions": [
+      "Walk 80 m to Vyttila Hub."
+     ],
+     "dataSource": "ors:foot-walking",
+     "confidence": "medium"
+    }
+   ],
+   "transfers": 0,
+   "assumptions": [
+    "Bus feed headways are a uniform 60-minute placeholder; an assumed 20-minute headway (10-minute expected wait) is used instead.",
+    "Bus fare is an approximate range, not a quote."
+   ],
+   "warnings": [
+    "Bus routes come from 2022–23 community data and may have changed."
+   ]
   }
  ],
  "provenance": [

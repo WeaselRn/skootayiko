@@ -9,6 +9,8 @@ import type { Gate } from "./useDrive";
 type Key = "fwd" | "back" | "left" | "right" | "boost";
 
 interface Props {
+  /** "cards" = transfer/arrival dialogs (full-map overlay); "panel" = bottom control bar. */
+  part: "cards" | "panel";
   option: RouteOption;
   timeline: Timeline;
   state: PlayState;
@@ -71,11 +73,11 @@ export default function RideHud(p: Props) {
   const next = p.gate?.kind === "transfer" ? p.option.segments[p.gate.next] : null;
   const pct = (p.time / p.timeline.total) * 100;
 
-  return (
-    <>
-      {/* Checkpoint cards */}
+  if (p.part === "cards") {
+    return (
+      <>
       {next && (
-        <div className="pointer-events-none absolute inset-x-0 top-[18%] flex justify-center px-3">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-3 pb-40">
           <div role="dialog" aria-live="assertive" className="pointer-events-auto w-full max-w-sm rounded-2xl bg-white p-4 text-slate-900 shadow-2xl ring-1 ring-black/5 dark:bg-slate-900 dark:text-slate-100">
             <div className="text-[11px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">Leg complete · {seg.destination.name}</div>
             <div className="mt-1.5 flex items-center gap-2 font-[family-name:var(--font-display)] text-lg font-bold">
@@ -97,7 +99,7 @@ export default function RideHud(p: Props) {
         </div>
       )}
       {p.gate?.kind === "arrived" && (
-        <div className="pointer-events-none absolute inset-x-0 top-[16%] flex justify-center px-3">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-3 pb-40">
           <div role="dialog" aria-live="assertive" className="pointer-events-auto w-full max-w-sm rounded-2xl bg-white p-5 text-center text-slate-900 shadow-2xl dark:bg-slate-900 dark:text-slate-100">
             <div className="font-[family-name:var(--font-display)] text-2xl font-extrabold">You made it!</div>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Arrived at {seg.destination.name}</p>
@@ -123,6 +125,12 @@ export default function RideHud(p: Props) {
         </div>
       )}
 
+      </>
+    );
+  }
+
+  return (
+    <>
       {/* Touch controls */}
       <div className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-1 flex items-end gap-2 [@media(pointer:fine)]:hidden">
         <div className="flex flex-col gap-2">

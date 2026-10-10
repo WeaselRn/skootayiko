@@ -7,6 +7,9 @@ import { z } from "zod";
  */
 export const SCHEMA_VERSION = "1.0" as const;
 
+/** Max intermediate stops between origin and destination. */
+export const MAX_VIA = 8;
+
 export const TransportMode = z.enum([
   "walking",
   "bike_taxi",
@@ -80,6 +83,8 @@ export const RouteSegment = z.object({
   /** Free-text provider/feed id, e.g. "gtfs:kmrl", "ors:foot-walking". */
   dataSource: z.string().optional(),
   confidence: Confidence,
+  /** Multi-stop trips: 0-based index of the stop-to-stop leg this segment belongs to (A→B = 0, B→C = 1, …). */
+  leg: z.number().int().nonnegative().optional(),
 });
 export type RouteSegment = z.infer<typeof RouteSegment>;
 
@@ -118,6 +123,8 @@ export const RoutePlanResponse = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   origin: RouteStop,
   destination: RouteStop,
+  /** Intermediate stops in visiting order (multi-stop trips only). */
+  via: z.array(RouteStop).optional(),
   /** ISO 8601 */
   generatedAt: z.string(),
   /** Requested departure, ISO 8601. */
@@ -135,6 +142,18 @@ export type RoutePlanResponse = z.infer<typeof RoutePlanResponse>;
 export const RoutePlanRequest = z.object({
   origin: z.object({ name: z.string().default("Origin"), location: Coordinate }),
   destination: z.object({ name: z.string().default("Destination"), location: Coordinate }),
+  /** Intermediate stops, visited in order between origin and destination. */
+  via: z
+    .array(
+      z.object({
+        name: z.string().default("Stop"),
+        location: Coordinate,
+        /** Minutes spent at this stop before the next leg departs (default 0). */
+        dwellMin: z.number().min(0).max(600).optional(),
+      }),
+    )
+    .max(MAX_VIA)
+    .optional(),
   /** ISO 8601; defaults to now. */
   departAt: z.string().optional(),
   /** Restrict first/last mile modes. */

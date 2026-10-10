@@ -12,6 +12,12 @@ export function balancedScore(o: RouteOption): number {
   return o.totalDurationSeconds + money + o.transfers * R.transferPenaltySeconds;
 }
 
+/** Balanced score with boat rides and walks discounted, for the day planner's "scenic" preference. */
+export function scenicScore(o: RouteOption): number {
+  const secs = (m: string) => o.segments.filter((s) => s.mode === m).reduce((a, s) => a + s.durationSeconds, 0);
+  return balancedScore(o) - secs("ferry") * R.scenicFerryWeight - secs("walking") * R.scenicWalkWeight;
+}
+
 /** A route is practical if not much slower than the fastest one. */
 export function isPractical(o: RouteOption, fastestSeconds: number): boolean {
   return (
@@ -34,12 +40,13 @@ function dominates(a: RouteOption, b: RouteOption): boolean {
  *  - cheapest: minimum mid-point cost among practical routes (ties: faster wins).
  *  - balanced: minimum balancedScore, only labelled if it differs from both.
  *  - options slower than maxDurationFactor × fastest are dropped.
+ *  - the best bus / metro / boat option is always kept if within that limit.
  * Output order: fastest, cheapest, balanced, then alternatives by balancedScore.
  */
 export function rankOptions(input: RouteOption[], limit = 5): RouteOption[] {
-  // Multi-leg options that are slower AND dearer than another option add nothing.
-  // Direct rides are kept so users can still compare taxi/auto/bike taxi.
-  const options = input.filter((o) => isDirect(o) || !input.some((x) => x !== o && dominates(x, o)));
+  // A transit option is pruned only when another *transit* option is better on every axis;
+  // direct rides never knock out public transport, and are always kept for comparison.
+  const options = input.filter((o) => isDirect(o) || !input.some((x) => x !== o && !isDirect(x) && dominates(x, o)));
   if (!options.length) return [];
   const byTime = [...options].sort((a, b) => a.totalDurationSeconds - b.totalDurationSeconds);
   const fastest = byTime[0];
@@ -64,5 +71,19 @@ export function rankOptions(input: RouteOption[], limit = 5): RouteOption[] {
       (a, b) =>
         Number(!practical.includes(a)) - Number(!practical.includes(b)) || balancedScore(a) - balancedScore(b),
     );
-  return [...head, ...rest].slice(0, limit).map((o) => ({ ...o, rankings: labels.get(o) ?? ["alternative"] }));
+  const chosen = [...head, ...rest].slice(0, limit);
+  // Diversity: always show the best bus, metro and boat journey when one is reasonable,
+  // replacing the weakest unlabelled pick.
+  for (const mode of ["bus", "metro", "ferry"] as const) {
+    if (chosen.some((o) => o.segments.some((s) => s.mode === mode))) continue;
+    // Drawn from all candidates (even ones pruned above) so each mode stays visible.
+    const best = input
+      .filter((o) => o.segments.some((s) => s.mode === mode) && o.totalDurationSeconds <= maxDuration)
+      .sort((a, b) => balancedScore(a) - balancedScore(b))[0];
+    if (!best) continue;
+    const slot = [...chosen].reverse().findIndex((o) => !labels.has(o));
+    if (chosen.length < limit) chosen.push(best);
+    else if (slot >= 0) chosen[chosen.length - 1 - slot] = best;
+  }
+  return chosen.map((o) => ({ ...o, rankings: labels.get(o) ?? ["alternative"] }));
 }

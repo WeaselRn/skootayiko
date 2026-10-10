@@ -48,6 +48,17 @@ RouteSegment
 | Added `liveData`, `mock`, `departAt`, `provenance[]` | Makes data honesty machine-readable. |
 | Added `auto_rickshaw` | A common first/last-mile mode in Kochi. |
 
+## Multi-stop trips (additive, schema stays 1.0)
+- Request: optional `via[]` (max 8 stops, `{ name, location, dwellMin? }`), visited in order between `origin` and `destination`. `dwellMin` (0–600) holds the next leg back by that many minutes after arrival.
+- Response: optional `via[]` echoing the stops used. Stops within 50 m of a neighbour are merged.
+- Segment: optional `leg` = index of the stop-to-stop leg (A→B = 0, B→C = 1 …). Segment ids are prefixed `l<leg>-`.
+- `transfers` counts transfers inside each leg only; boarding at a stop is not a transfer.
+
+## Day planner (`POST /api/itinerary`, `src/schema/itinerary.ts`)
+- Separate contract; reuses `RoutePlanResponse` for the routed day (`plan`, followed option `selected`).
+- Response: `stops` (chosen `Suggestion`s in order), `dropped[]` (`{ sight, reason: closed|too_far|over_budget|removed, detail }`), `timeline[]` (`travel` / `visit` / `lunch` items with ISO times), `usedMin`, `slackMin`, `fits`, `totalScore`, `warnings`.
+- `Suggestion` gained additive fields with defaults: `dwellMin`, `score` (0–1), optional `hours`, `closedDays`, `sunset`, `blurb`, `curated`.
+
 ## Invariants (tested in `tests/routing.test.ts`)
 - Segment *i* destination equals segment *i+1* origin, within 1 m.
 - Each departure time is at or after the previous arrival time.

@@ -19,10 +19,12 @@ export function metroFare(
   return range(p, p, "published_schedule", "KMRL fare table (single-journey token; card/QR discounts not applied)");
 }
 
+/** ₹10 up to the first km, then ₹8 per started km beyond it (config/fares.json). */
 export function busFare(distanceM: number): CostEstimate {
   const c = FARES.bus;
-  const extraKm = Math.max(0, distanceM / 1000 - c.minFareKm);
-  return range(c.minFare + extraKm * c.perKmLow, c.minFare + extraKm * c.perKmHigh, "model_estimate", c.basis);
+  const extraKm = Math.ceil(Math.max(0, distanceM / 1000 - c.minFareKm) - 1e-9);
+  const fare = c.minFare + extraKm * c.perExtraKm;
+  return range(fare, fare, "model_estimate", c.basis);
 }
 
 export function ferryFare(): CostEstimate {

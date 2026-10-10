@@ -125,3 +125,38 @@ export class GridIndex {
     return out.sort((x, y) => x[1] - y[1]);
   }
 }
+
+/** Shortest distance (m) from a point to a polyline, plus which segment is nearest. */
+export function distanceToPolyline(p: Coordinate, pts: Coordinate[]): { meters: number; segment: number } {
+  if (pts.length === 0) return { meters: Infinity, segment: 0 };
+  if (pts.length === 1) return { meters: haversine(p, pts[0]), segment: 0 };
+  const xy = project(p, p.lat);
+  let best = { meters: Infinity, segment: 0 };
+  for (let i = 1; i < pts.length; i++) {
+    const d = segDist(xy, project(pts[i - 1], p.lat), project(pts[i], p.lat));
+    if (d < best.meters) best = { meters: d, segment: i - 1 };
+  }
+  return best;
+}
+
+/** Points spaced roughly `stepM` apart along a polyline (always includes both ends). */
+export function samplePolyline(pts: Coordinate[], stepM: number): Coordinate[] {
+  if (pts.length < 2) return pts.slice();
+  const out: Coordinate[] = [pts[0]];
+  let carry = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const len = haversine(a, b);
+    let at = stepM - carry;
+    while (at < len) {
+      const t = at / len;
+      out.push({ lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t });
+      at += stepM;
+    }
+    carry = len - (at - stepM);
+  }
+  const last = pts[pts.length - 1];
+  if (haversine(out[out.length - 1], last) > stepM * 0.3) out.push(last);
+  return out;
+}

@@ -3,6 +3,7 @@
 import type { RouteOption } from "@/schema/route";
 import { fmtClock, fmtCost, fmtDistance, fmtDuration, SOURCE_LABEL } from "@/lib/format";
 import { MODE_STYLE } from "@/lib/modes";
+import { stopLetter } from "@/lib/stops";
 
 const CONF: Record<string, string> = {
   high: "text-emerald-700 dark:text-emerald-400",
@@ -19,13 +20,29 @@ export default function SegmentList({
   active: number | null;
   onFocus(i: number): void;
 }) {
+  const last = option.segments[option.segments.length - 1];
+  // Multi-stop trips: the final marker is the last letter, and each leg change shows the stop reached.
+  const endLetter = stopLetter((last.leg ?? 0) + 1);
   return (
     <ol className="relative">
       {option.segments.map((s, i) => {
         const st = MODE_STYLE[s.mode];
         const isActive = active === i;
+        const prev = option.segments[i - 1];
+        const newLeg = prev && (s.leg ?? 0) !== (prev.leg ?? 0);
         return (
           <li key={s.id} className="relative pl-7">
+            {newLeg && (
+              <div className="relative -ml-7 flex items-center gap-2 py-1.5">
+                <span aria-hidden className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full bg-teal-600 text-[10px] font-bold text-white">
+                  {stopLetter(s.leg ?? 0)}
+                </span>
+                <div className="text-sm font-semibold">
+                  {prev.destination.name}
+                  <span className="ml-2 text-xs font-normal text-[var(--color-muted)]">arrive {fmtClock(prev.destination.arrivalTime)}</span>
+                </div>
+              </div>
+            )}
             <span
               aria-hidden
               className="absolute bottom-0 left-[9px] top-0 w-1 rounded-full"
@@ -81,7 +98,7 @@ export default function SegmentList({
       })}
       <li className="relative pl-7 pt-1">
         <span aria-hidden className="absolute left-0 top-1.5 grid h-[22px] w-[22px] place-items-center rounded-full bg-rose-700 text-[10px] font-bold text-white">
-          B
+          {endLetter}
         </span>
         <div className="text-sm font-semibold">
           Arrive {fmtClock(option.segments[option.segments.length - 1].destination.arrivalTime)}

@@ -2,17 +2,26 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RoutePlanResponse, type Coordinate } from "@/schema/route";
+import type { Suggestion } from "@/schema/suggest";
+import { ItineraryResponse } from "@/schema/itinerary";
+import { simplify } from "@/server/geo";
+import { DEFAULT_INTERESTS } from "@/lib/interests";
+import { MAX_STOPS, newStop, stopLetter, stopsKey, stopTone, TONE_COLOR, type Stop } from "@/lib/stops";
 import { istLocalToIso, nowIstLocalInput } from "@/lib/format";
 import { loadAvatar, parseAvatar, saveAvatar, type Avatar } from "@/lib/avatar";
-import PlaceInput, { type PlaceValue } from "./search/PlaceInput";
+import StopsEditor from "./search/StopsEditor";
+import SightsPanel from "./search/SightsPanel";
+import DayPanel, { type Pace, type Prefer } from "./itinerary/DayPanel";
+import Timeline from "./itinerary/Timeline";
+import { useSuggestions } from "./search/useSuggestions";
 import RouteCard from "./routes/RouteCard";
 import SegmentList from "./routes/SegmentList";
 import RideHud from "./player/RideHud";
 import { useDrive, type DriveFrame } from "./player/useDrive";
 import Logo from "./brand/Logo";
-import type { JourneyMapHandle } from "./map/JourneyMap";
+import type { JourneyMapHandle, StopMarker } from "./map/JourneyMap";
 
 const JourneyMap = dynamic(() => import("./map/JourneyMap"), {
   ssr: false,
@@ -42,21 +51,35 @@ function detectLowPower(): boolean {
 const coordName = (c: Coordinate) => `Pinned ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}`;
 
 export default function Planner() {
-  const [origin, setOrigin] = useState<PlaceValue | null>(null);
-  const [destination, setDestination] = useState<PlaceValue | null>(null);
+  const [mode, setMode] = useState<"route" | "day">("route");
+  const [stops, setStops] = useState<Stop[]>(() => [newStop(), newStop()]);
+  const [planKey, setPlanKey] = useState("");
+  const [sightsOn, setSightsOn] = useState(false);
+  const [interests, setInterests] = useState<string[]>(DEFAULT_INTERESTS);
+  const [maxOffRouteM, setMaxOffRouteM] = useState(1000);
   const [departMode, setDepartMode] = useState<"now" | "at">("now");
   const [departAt, setDepartAt] = useState("");
   const [bikeTaxi, setBikeTaxi] = useState(true);
   const [plan, setPlan] = useState<RoutePlanResponse | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [selected, setSelected] = useState(0);
-  const [pickMode, setPickMode] = useState<"origin" | "destination" | null>(null);
+  const [pickId, setPickId] = useState<string | null>(null);
   const [follow, setFollow] = useState(true);
   const [focusSeg, setFocusSeg] = useState<number | null>(null);
   const [lowPower] = useState(detectLowPower);
   const reducedMotion = usePrefersReducedMotion();
   const [avatar, setAvatar] = useState<Avatar>("man");
   const [riding, setRiding] = useState(false);
+  // "Plan my day" inputs and result.
+  const [budgetMin, setBudgetMin] = useState(240);
+  const [pace, setPace] = useState<Pace>("normal");
+  const [lunch, setLunch] = useState(true);
+  const [prefer, setPrefer] = useState<Prefer>("fastest");
+  const [dayInterests, setDayInterests] = useState<string[]>(["sights", "heritage", "museums", "beaches"]);
+  const [mustSee, setMustSee] = useState<string[]>([]);
+  const [exclude, setExclude] = useState<string[]>([]);
+  const [itinerary, setItinerary] = useState<ItineraryResponse | null>(null);
+  const [dayKey, setDayKey] = useState("");
   const mapRef = useRef<JourneyMapHandle>(null);
 
   useEffect(() => {
@@ -91,7 +114,60 @@ export default function Planner() {
     return () => window.removeEventListener("keydown", k);
   }, [riding]);
 
-  const canSearch = !!origin && !!destination && status.kind !== "loading";
+  const origin = stops[0].value;
+  const destination = stops[stops.length - 1].value;
+  const dayMode = mode === "day";
+  const canSearch = !!origin && (dayMode ? dayInterests.length > 0 || stops.slice(1, -1).some((s) => s.value) : !!destination) && status.kind !== "loading";
+  const filled = useMemo(() => stops.filter((s) => s.value), [stops]);
+  const curKey = stopsKey(stops);
+  const dayInputsKey = `${curKey}|${budgetMin}|${departAt}|${dayInterests.join(",")}|${pace}|${lunch}|${prefer}`;
+  const planStale = dayMode ? !!itinerary && dayKey !== dayInputsKey : !!plan && planKey !== curKey;
+
+  const stopMarkers = useMemo<StopMarker[]>(() => {
+    // A planned day shows its own order: start, chosen sights, end.
+    if (dayMode && itinerary && origin) {
+      const pts = [origin.location, ...itinerary.stops.map((s) => s.location), (destination ?? origin).location];
+      return pts.map((location, i) => ({ location, label: stopLetter(i), color: TONE_COLOR[stopTone(i, pts.length)] }));
+    }
+    return stops.flatMap((s, i) =>
+      s.value ? [{ location: s.value.location, label: stopLetter(i), color: TONE_COLOR[stopTone(i, stops.length)] }] : [],
+    );
+  }, [stops, dayMode, itinerary, origin, destination]);
+
+  // Sights along the route: follow the real route once a plan matches the form, else straight lines between stops.
+  const routePath = useMemo(() => {
+    if (!option || planStale) return undefined;
+    const pts = option.segments.flatMap((s) => s.geometry);
+    let out = simplify(pts, 40);
+    if (out.length > 400) out = out.filter((_, i) => i % Math.ceil(out.length / 400) === 0);
+    return out;
+  }, [option, planStale]);
+  const sights = useSuggestions({
+    enabled: sightsOn && !dayMode,
+    stops: filled.map((s) => s.value!.location),
+    path: routePath,
+    interests,
+    maxOffRouteM,
+  });
+  const sightItems = useMemo(
+    () =>
+      dayMode
+        ? (itinerary?.dropped.filter((d) => d.reason !== "removed" && d.reason !== "closed").map((d) => d.sight) ?? [])
+        : sights.kind === "off"
+          ? []
+          : sights.items,
+    [dayMode, itinerary, sights],
+  );
+
+  const addSight = (s: Suggestion) => {
+    if (stops.length >= MAX_STOPS) return;
+    // `afterStop` counts filled-in stops; find where that sits in the full list.
+    const anchor = stops.indexOf(filled[Math.min(s.afterStop, filled.length - 1)]);
+    const at = anchor + 1;
+    const next = [...stops];
+    next.splice(at, 0, newStop({ name: s.name, location: s.location }));
+    setStops(next);
+  };
 
   async function search() {
     if (!origin || !destination) return;
@@ -103,6 +179,9 @@ export default function Planner() {
         body: JSON.stringify({
           origin,
           destination,
+          via: stops
+            .slice(1, -1)
+            .flatMap((s) => (s.value ? [s.value] : [])),
           departAt: departMode === "at" && departAt ? istLocalToIso(departAt) : undefined,
           accessModes: bikeTaxi ? ["walking", "bike_taxi"] : ["walking"],
         }),
@@ -112,6 +191,7 @@ export default function Planner() {
       const parsed = RoutePlanResponse.safeParse(json);
       if (!parsed.success) throw new Error("The route service returned data in an unexpected format.");
       setPlan(parsed.data);
+      setPlanKey(curKey);
       setSelected(0);
       setFocusSeg(null);
       setStatus({ kind: "idle" });
@@ -120,12 +200,62 @@ export default function Planner() {
     }
   }
 
+  async function planDay(over: { mustSee?: string[]; exclude?: string[] } = {}) {
+    if (!origin) return;
+    const ms = over.mustSee ?? mustSee;
+    const ex = over.exclude ?? exclude;
+    setMustSee(ms);
+    setExclude(ex);
+    setStatus({ kind: "loading" });
+    try {
+      const res = await fetch("/api/itinerary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start: origin,
+          end: destination ?? undefined,
+          startAt: departAt ? istLocalToIso(departAt) : undefined,
+          budgetMin,
+          interests: dayInterests.length ? dayInterests : ["sights"],
+          pace,
+          lunch,
+          prefer,
+          mustSee: ms,
+          exclude: ex,
+          extraStops: stops.slice(1, -1).flatMap((s) => (s.value ? [s.value] : [])),
+          accessModes: bikeTaxi ? ["walking", "bike_taxi"] : ["walking"],
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? `Request failed (${res.status})`);
+      const parsed = ItineraryResponse.safeParse(json);
+      if (!parsed.success) throw new Error("The planner returned data in an unexpected format.");
+      setItinerary(parsed.data);
+      setDayKey(dayInputsKey);
+      setPlan(parsed.data.plan);
+      setPlanKey(curKey);
+      setSelected(parsed.data.selected);
+      setFocusSeg(null);
+      setStatus({ kind: "idle" });
+    } catch (e) {
+      setStatus({ kind: "error", message: (e as Error).message });
+    }
+  }
+
+  const switchMode = (m: "route" | "day") => {
+    if (m === mode) return;
+    setMode(m);
+    setPlan(null);
+    setItinerary(null);
+    setStatus({ kind: "idle" });
+  };
+
   const onPick = (c: Coordinate) => {
     const v = { name: coordName(c), location: c };
-    if (pickMode === "origin") setOrigin(v);
-    else if (pickMode === "destination") setDestination(v);
-    setPickMode(null);
+    setStops((all) => all.map((s) => (s.id === pickId ? { ...s, value: v } : s)));
+    setPickId(null);
   };
+  const pickIdx = stops.findIndex((s) => s.id === pickId);
 
   const startRide = () => {
     setFollow(true);
@@ -141,6 +271,38 @@ export default function Planner() {
     mapRef.current?.fitOption();
   };
 
+  const hudProps =
+    drive.timeline && drive.state && option
+      ? {
+          option,
+          timeline: drive.timeline,
+          state: drive.state,
+          time: drive.time,
+          gate: drive.gate,
+          auto: drive.auto,
+          moving: drive.moving,
+          rate: drive.rate,
+          follow,
+          onPress: drive.press,
+          onToggleAuto: drive.toggleAuto,
+          onContinue: drive.continueGate,
+          onRestart: () => {
+            drive.restart();
+            mapRef.current?.recenter();
+          },
+          onJump: (i: number) => {
+            drive.jumpToSegment(i);
+            mapRef.current?.recenter();
+          },
+          onFollow: (f: boolean) => {
+            setFollow(f);
+            if (f) mapRef.current?.recenter();
+          },
+          onRecenter: () => mapRef.current?.recenter(),
+          onExit: exitRide,
+        }
+      : null;
+
   return (
     <div className="flex h-dvh flex-col md:flex-row">
       {/* Map + player */}
@@ -153,16 +315,16 @@ export default function Planner() {
           follow={follow && riding}
           reducedMotion={reducedMotion}
           lowPower={lowPower}
-          origin={origin?.location}
-          destination={destination?.location}
-          pickMode={pickMode}
+          stopMarkers={stopMarkers}
+          suggestions={sightItems}
+          pickMode={pickId !== null}
           onPick={onPick}
           avatar={avatar}
         />
-        {pickMode && (
+        {pickId !== null && (
           <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
             <div className="rounded-full bg-slate-900/90 px-3 py-1.5 text-xs text-white shadow">
-              Click the map to set {pickMode === "origin" ? "the start (A)" : "the destination (B)"}
+              Click the map to set {pickIdx === 0 ? "the start" : pickIdx === stops.length - 1 ? "the destination" : `stop ${stopLetter(pickIdx)}`} ({stopLetter(pickIdx)})
             </div>
           </div>
         )}
@@ -170,34 +332,7 @@ export default function Planner() {
           <div className="pointer-events-none absolute inset-x-2 bottom-2 md:inset-x-auto md:bottom-4 md:left-4 md:w-[min(620px,calc(100%-2rem))]">
             {riding ? (
               <div className="relative">
-                <RideHud
-                  option={option}
-                  timeline={drive.timeline}
-                  state={drive.state}
-                  time={drive.time}
-                  gate={drive.gate}
-                  auto={drive.auto}
-                  moving={drive.moving}
-                  rate={drive.rate}
-                  follow={follow}
-                  onPress={drive.press}
-                  onToggleAuto={drive.toggleAuto}
-                  onContinue={drive.continueGate}
-                  onRestart={() => {
-                    drive.restart();
-                    mapRef.current?.recenter();
-                  }}
-                  onJump={(i) => {
-                    drive.jumpToSegment(i);
-                    mapRef.current?.recenter();
-                  }}
-                  onFollow={(f) => {
-                    setFollow(f);
-                    if (f) mapRef.current?.recenter();
-                  }}
-                  onRecenter={() => mapRef.current?.recenter()}
-                  onExit={exitRide}
-                />
+                {hudProps && <RideHud part="panel" {...hudProps} />}
               </div>
             ) : (
               <button
@@ -211,10 +346,16 @@ export default function Planner() {
             )}
           </div>
         )}
+        {/* Transfer / arrival cards sit above the control bar, centred on the map. */}
+        {riding && hudProps && (
+          <div className="pointer-events-none absolute inset-0 z-20">
+            <RideHud part="cards" {...hudProps} />
+          </div>
+        )}
       </section>
 
       {/* Planner panel */}
-      <aside className="flex min-h-0 flex-1 flex-col border-[var(--color-line)] bg-[var(--color-panel)] md:order-1 md:w-[400px] md:flex-none md:border-r">
+      <aside className="flex min-h-0 flex-1 flex-col overflow-y-auto border-[var(--color-line)] bg-[var(--color-panel)] md:order-1 md:w-[400px] md:flex-none md:border-r">
         <header className="px-4 pb-2 pt-4">
           <h1 className="flex items-center justify-between gap-2 text-2xl">
             <Link href="/" aria-label="Skootayiko home" className="[--brand-ink:var(--color-ink)]">
@@ -234,36 +375,39 @@ export default function Planner() {
           className="space-y-2 px-4 pb-3"
           onSubmit={(e) => {
             e.preventDefault();
-            search();
+            if (dayMode) planDay();
+            else search();
           }}
         >
-          <PlaceInput
-            label="From"
-            marker="A"
-            value={origin}
-            onChange={setOrigin}
-            picking={pickMode === "origin"}
-            onPickOnMap={() => setPickMode(pickMode === "origin" ? null : "origin")}
-          />
-          <PlaceInput
-            label="To"
-            marker="B"
-            value={destination}
-            onChange={setDestination}
-            picking={pickMode === "destination"}
-            onPickOnMap={() => setPickMode(pickMode === "destination" ? null : "destination")}
-          />
+          <div className="grid grid-cols-2 rounded-xl bg-slate-500/10 p-1 text-sm font-semibold" role="tablist" aria-label="Planner mode">
+            {(
+              [
+                ["route", "Find a route"],
+                ["day", "Plan my day"],
+              ] as const
+            ).map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => switchMode(m)}
+                className={`rounded-lg py-1.5 ${mode === m ? "bg-[var(--color-panel)] shadow-sm" : "text-[var(--color-muted)] hover:text-[var(--color-ink)]"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <StopsEditor stops={stops} onChange={setStops} pickId={pickId} onPick={setPickId} />
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
-              onClick={() => {
-                setOrigin(destination);
-                setDestination(origin);
-              }}
+              onClick={() => setStops((all) => [...all].reverse())}
               className="rounded-md px-2 py-1 hover:bg-slate-500/10"
             >
-              ⇅ Swap
+              ⇅ Reverse
             </button>
+            {!dayMode && (
             <select
               aria-label="Departure"
               value={departMode}
@@ -273,7 +417,8 @@ export default function Planner() {
               <option value="now">Leave now</option>
               <option value="at">Leave at…</option>
             </select>
-            {departMode === "at" && (
+            )}
+            {!dayMode && departMode === "at" && (
               <input
                 type="datetime-local"
                 aria-label="Departure time (IST)"
@@ -287,16 +432,47 @@ export default function Planner() {
               Bike taxi to/from metro
             </label>
           </div>
+          {dayMode ? (
+            <DayPanel
+              budgetMin={budgetMin}
+              onBudget={setBudgetMin}
+              startAt={departAt}
+              onStartAt={setDepartAt}
+              interests={dayInterests}
+              onInterests={setDayInterests}
+              pace={pace}
+              onPace={setPace}
+              lunch={lunch}
+              onLunch={setLunch}
+              prefer={prefer}
+              onPrefer={setPrefer}
+              roundTrip={!destination}
+            />
+          ) : (
+          <SightsPanel
+            enabled={sightsOn}
+            onEnabled={setSightsOn}
+            interests={interests}
+            onInterests={setInterests}
+            maxOffRouteM={maxOffRouteM}
+            onMaxOffRoute={setMaxOffRouteM}
+            state={sights}
+            ready={filled.length >= 2}
+            canAdd={stops.length < MAX_STOPS}
+            onAdd={addSight}
+            onLook={(s) => mapRef.current?.focusPoint(s.location)}
+          />
+          )}
           <button
             type="submit"
             disabled={!canSearch}
             className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {status.kind === "loading" ? "Finding routes…" : "Find routes"}
+            {dayMode ? (status.kind === "loading" ? "Planning your day…" : "Plan my day") : status.kind === "loading" ? "Finding routes…" : "Find routes"}
           </button>
         </form>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-6">
+        <div className="space-y-3 px-4 pb-6">
           {status.kind === "error" && (
             <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
               {status.message}
@@ -311,15 +487,57 @@ export default function Planner() {
             </div>
           )}
 
-          {!plan && status.kind === "idle" && (
+          {dayMode && itinerary && status.kind !== "loading" && (
+            <>
+              {planStale && (
+                <p role="status" className="rounded-xl border border-teal-600/30 bg-teal-600/10 p-2.5 text-xs">
+                  Your inputs changed since this day was planned. Press “Plan my day” to update it.
+                </p>
+              )}
+              {itinerary.warnings.length > 0 && (
+                <details className="rounded-xl border border-amber-300/60 bg-[var(--color-warn-bg)] p-3 text-xs text-[var(--color-warn)]">
+                  <summary className="cursor-pointer font-semibold">Notes ({itinerary.warnings.length})</summary>
+                  <ul className="mt-1.5 list-disc space-y-1 pl-4">
+                    {itinerary.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              <Timeline
+                itinerary={itinerary}
+                mustSee={mustSee}
+                busy={false}
+                onSwap={(id) => planDay({ exclude: [...exclude, id], mustSee: mustSee.filter((x) => x !== id) })}
+                onTogglePin={(id) => planDay({ mustSee: mustSee.includes(id) ? mustSee.filter((x) => x !== id) : [...mustSee, id] })}
+                onAdd={(id) => planDay({ mustSee: [...mustSee.filter((x) => x !== id), id].slice(-8) })}
+                onRestore={(id) => planDay({ exclude: exclude.filter((x) => x !== id) })}
+                onLook={(s) => mapRef.current?.focusPoint(s.location)}
+              />
+            </>
+          )}
+
+          {!itinerary && status.kind === "idle" && dayMode && (
             <p className="text-sm text-[var(--color-muted)]">
-              Search two places in Kochi (or pick them on the map) to compare metro, bus, boat, bike-taxi, auto and taxi options by
+              Set where you start (and optionally where you finish), how much time you have and what you enjoy. The planner picks the sights
+              that fit best, orders them and routes the day.
+            </p>
+          )}
+
+          {!plan && status.kind === "idle" && !dayMode && (
+            <p className="text-sm text-[var(--color-muted)]">
+              Search two or more places in Kochi (or pick them on the map) to compare metro, bus, boat, bike-taxi, auto and taxi options by
               estimated time and cost.
             </p>
           )}
 
           {plan && status.kind !== "loading" && (
             <>
+              {planStale && (
+                <p role="status" className="rounded-xl border border-teal-600/30 bg-teal-600/10 p-2.5 text-xs">
+                  Stops changed since these routes were found. Press “Find routes” to update them.
+                </p>
+              )}
               {(plan.mock || (plan.dataWarnings?.length ?? 0) > 0) && (
                 <details className="rounded-xl border border-amber-300/60 bg-[var(--color-warn-bg)] p-3 text-xs text-[var(--color-warn)]">
                   <summary className="cursor-pointer font-semibold">
@@ -333,7 +551,7 @@ export default function Planner() {
                 </details>
               )}
 
-              {plan.options.length === 0 ? (
+              {dayMode ? null : plan.options.length === 0 ? (
                 <p className="rounded-xl border border-[var(--color-line)] p-3 text-sm">No routes found for this trip.</p>
               ) : (
                 <div className="space-y-2" role="list" aria-label="Route options">
@@ -354,7 +572,7 @@ export default function Planner() {
 
               {option && (
                 <section aria-label="Journey steps" className="pt-1">
-                  <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">Steps</h2>
+                  <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">{dayMode ? "Travel steps" : "Steps"}</h2>
                   <SegmentList
                     option={option}
                     active={activeSegment}

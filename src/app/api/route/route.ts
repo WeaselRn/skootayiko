@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { RoutePlanRequest, RoutePlanResponse } from "@/schema/route";
 import { env } from "@/server/env";
-import { planRoutes } from "@/server/routing/plan";
+import { planJourney } from "@/server/routing/multi";
 import { pickFixture } from "@/fixtures";
 
 export const runtime = "nodejs";
@@ -22,7 +22,8 @@ const cacheKey = (r: RoutePlanRequest) => {
   const c = (p: { lat: number; lon: number }) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`;
   // Departure rounded to 5 minutes so nearby requests share a cache entry.
   const t = Math.floor((r.departAt ? Date.parse(r.departAt) : Date.now()) / 300_000);
-  return `${c(r.origin.location)}|${c(r.destination.location)}|${t}|${(r.accessModes ?? []).join(",")}`;
+  const via = (r.via ?? []).map((v) => `${c(v.location)}+${v.dwellMin ?? 0}`).join(";");
+  return `${c(r.origin.location)}|${via}|${c(r.destination.location)}|${t}|${(r.accessModes ?? []).join(",")}`;
 };
 
 export async function POST(req: Request) {
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.issues }, { status: 400 });
   }
 
-  if (env.USE_MOCK_ROUTES) {
+  if (env.USE_MOCK_ROUTES && !parsed.data.via?.length) {
     const sample = pickFixture(parsed.data);
     if (sample) return NextResponse.json(sample);
   }
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
   if (hit && Date.now() - hit.at < env.ROUTE_CACHE_TTL_SECONDS * 1000) return NextResponse.json(hit.body);
 
   try {
-    const plan = RoutePlanResponse.parse(await planRoutes(parsed.data));
+    const plan = RoutePlanResponse.parse(await planJourney(parsed.data));
     if (cache.size > 500) cache.delete(cache.keys().next().value!);
     cache.set(key, { at: Date.now(), body: plan });
     return NextResponse.json(plan);

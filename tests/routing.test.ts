@@ -60,6 +60,12 @@ describe("fares", () => {
     expect(metroFare(net.metroFares, "ALVA", "VYTA")).toMatchObject({ min: 60, max: 60, source: "published_schedule" });
     expect(metroFare(net.metroFares, "NOPE", "VYTA")).toBeUndefined();
   });
+  it("applies the bus rule: ₹10 up to 1 km, +₹8 per started km after", () => {
+    expect(busFare(800).min).toBe(10);
+    expect(busFare(1000).min).toBe(10);
+    expect(busFare(1001).min).toBe(18);
+    expect(busFare(3500)).toMatchObject({ min: 34, max: 34 });
+  });
   it("marks modelled fares as estimates with a range", () => {
     const b = busFare(10_000);
     expect(b.source).toBe("model_estimate");

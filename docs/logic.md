@@ -19,7 +19,7 @@ RAPTOR is a round-based search with one round per ride. It returns a Pareto set 
 - **Transfers:** walking between stops within 400 m. Distance is straight-line × 1.3 at 1.3 m/s.
 - **Access and egress:**
   - Walking reaches every stop within `MAX_WALK_METERS`.
-  - A bike taxi reaches only the nearest 4 metro stations or jetties within 7 km that are more than 600 m away.
+  - A bike taxi reaches the nearest 4 metro stations or jetties and the nearest 3 bus hubs (stops on 6 or more patterns) within 7 km that are more than 600 m away.
 
 ## Candidates (`plan.ts`)
 1. Run RAPTOR several times:
@@ -37,19 +37,45 @@ RAPTOR is a round-based search with one round per ride. It returns a Pareto set 
 6. Re-time the whole journey leg by leg with the same boarding functions. A later arrival can therefore miss a train.
 7. Compute totals with `computeTotals`, then rank.
 
+## Multi-stop trips (`multi.ts`)
+- Each stop-to-stop leg is planned on its own with `planRoutes`; leg n+1 departs when the chosen leg n option arrives.
+- One combined journey is built per picker: fastest, cheapest, balanced, and the fastest option using metro, bus or boat on every leg. Identical journeys collapse, then `rankOptions` labels them.
+- A via stop may carry `dwellMin`: the next leg departs at arrival + dwell. Without it the next leg starts on arrival. Merged (duplicate) stops add their dwell together.
+- If any leg has no option for a picker, that picker produces no journey. If none do, the response has no options and a warning.
+
+## Sights on the way (`suggest/nearby.ts`, `POST /api/suggest`)
+- Opt-in. The user picks interests (`src/lib/interests.ts`) and a maximum distance off the route (0.5, 1 or 2 km).
+- The route (the real geometry once a plan exists, else straight lines between stops) is sampled about every 2 km. Each sample queries LocationIQ Nearby with the tags of the chosen interests, at most 14 calls spaced 550 ms apart (free-tier 2 req/s); results are cached for 24 h.
+- Places are kept when within the chosen distance of the route, then sorted by `score` = interest match × popularity × detour penalty (1.0 on the route, 0.4 at the distance limit), de-duplicated, and capped at 18. Popularity comes from `config/sights.json` when the place matches a curated sight, else a per-interest base (`src/lib/dwell.ts`).
+- Each suggestion also carries `dwellMin` (curated, else per-kind/interest default) and, for curated sights, opening `hours`, `closedDays` and a `blurb`. Neighbourhood parks with names like "Residential Park" are dropped.
+- `afterStop` is the stop whose leg the place is nearest to; "+ Add" inserts it right after that stop.
+- If the provider rate-limits some samples, the response is marked `partial`.
+
+## Plan my day (`routing/itinerary.ts`, `routing/dayplan.ts`, `POST /api/itinerary`)
+- Input: start, optional end (default: back to start), start time, time budget (30–720 min), interests, pace (relaxed ×1.3 / normal / packed ×0.75 dwell), must-see ids, own extra stops (always must-see), removed ids, lunch, route preference (fastest / scenic).
+- **Candidates:** curated sights (`config/sights.json`) matching the interests, plus LocationIQ places along the start→end line when the key is set (up to 3 km off). Duplicates within 60 m or with the same name within 250 m collapse; places at the start/end are skipped. Top 24 by must-see, then score.
+- **Solver** (deterministic, no AI): an orienteering heuristic on a quick travel model (walk ≤ 1.5 km, else auto-rickshaw speed + pickup wait, +10%). Repeatedly inserts the sight/position with the best worth per added second, then 2-opt. Worth = score × 100, ×1.3 for sunset spots visited around sunset, +1000 for must-sees. Opening windows and closed days are hard limits; arriving early waits for opening (waiting counts against the budget). Lunch (45 min) goes after the first visit ending 12:00–15:00, else on arrival at the end. At most 8 stops.
+- **Monotonic budget:** the solver runs greedy at every 5-minute budget up to the real one and keeps the best, so more time never gives a lower total score.
+- **Left out:** every unchosen sight gets a reason: `closed` (closed that day or not open long enough), `too_far` (alone it would not fit), `over_budget` (did not fit alongside better stops), `removed` (by the user).
+- **Re-timing:** the chosen order goes to `planJourney` as via stops with `dwellMin` = wait + visit (+ lunch). The fastest option (or the lowest scenic score) is followed. If the real day runs over, the stop with the least worth per minute (visit + detour) is dropped and the day re-routed, at most twice. If real routes leave 20+ min over, the travel model is scaled to the real travel times and the day re-solved once; the bigger day is kept only if it still fits.
+- **Timeline:** travel, visit (with real wait for opening and "closes soon / may be closed" warnings) and lunch blocks, contiguous from start to finish. `fits`, `usedMin` and `slackMin` compare the routed finish with the budget.
+- **Scenic:** `scenicScore` = balanced score − 1.5 × ferry seconds − 0.3 × walking seconds (`config/fares.json` → `ranking`).
+
 ## Ranking (`rank.ts`)
 - **fastest:** the lowest door-to-door duration.
 - A route is **practical** if its duration is at most max(2 × fastest, fastest + 30 min).
 - **cheapest:** the lowest cost midpoint among practical routes. On a tie, the faster route wins.
 - **balanced:** the lowest value of duration + cost ÷ (₹2/min) + 300 s × transfers. It gets the label only if it is a different option from fastest and cheapest.
 - A multi-leg option is dropped if another option is no slower, no dearer, has no more transfers, and is strictly better on time or cost. Direct rides are always kept.
+- A multi-leg option is pruned only when another multi-leg (transit) option beats it; direct rides never prune transit.
 - Options slower than 2.5 × fastest are dropped. The planner returns at most 5 options.
+- The best bus, metro and boat journeys are always kept, even if pruned, as long as they are within 2.5 × fastest.
 
 ## Fares (`fares.ts`, `config/fares.json`)
 | Mode | Method | Source tag |
 |---|---|---|
 | Metro | KMRL `fare_rules` (₹10–60, token price) | `published_schedule` |
-| Bus | ₹10 minimum for the first 2.5 km, then ₹1.0–1.1/km along the shape | `model_estimate` |
+| Bus | ₹10 up to 1 km, then ₹8 per started km along the shape (interim product rule) | `model_estimate` |
 | Boat | ₹6–20 flat | `model_estimate` |
 | Bike taxi, auto, taxi | base + per-km range, with a minimum fare | `model_estimate` |
 | Walk | ₹0 | — |

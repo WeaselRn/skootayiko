@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { MercatorCoordinate, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MlMap } from "maplibre-gl";
 import type { Coordinate, RouteOption } from "@/schema/route";
 import type { Avatar } from "@/lib/avatar";
+import type { MetroNetwork } from "@/lib/metro";
 import { pathSampler, type PathSampler, type PlayState } from "@/lib/journey";
 import { MODE_STYLE } from "@/lib/modes";
 import { instantiate, isPerson, loadModel, MODELS, modelForMode, type Instance } from "./models";
@@ -51,6 +52,13 @@ export interface Motion {
 }
 
 const EARTH_CIRC = 40075016.686;
+
+/** three.js can't build frustum planes from MapLibre's matrix, so never cull by frustum. */
+function disableFrustumCulling(root: THREE.Object3D) {
+  root.traverse((o) => {
+    o.frustumCulled = false;
+  });
+}
 const VEHICLE_PX = 64;
 const PERSON_PX = 40;
 const MAX_EXAGGERATION = 40;
@@ -69,8 +77,10 @@ export class JourneyLayer implements CustomLayerInterface {
   private renderer?: THREE.WebGLRenderer;
   private readonly root = new THREE.Scene();
   /**
-   * Local ENU world (x east, y north, z up). Mercator y grows southward, so this group
-   * mirrors y; keeping the mirror on an object (not the camera) lets three.js fix face winding.
+   * Local ENU world (x east, y north, z up), right-handed. The camera matrix converts to
+   * Mercator (y south), so three.js sees a normal right-handed scene: winding, culling and
+   * lighting all behave. (Frustum culling is disabled: three can't derive planes from
+   * MapLibre's projection.)
    */
   private readonly scene = new THREE.Group();
   /**
@@ -88,6 +98,10 @@ export class JourneyLayer implements CustomLayerInterface {
   private samplers: PathSampler[] = [];
   private actors = new Map<number, Actor>();
   private props = new THREE.Group();
+  /** Whole Kochi Metro Line 1 (viaduct + stations), shown regardless of the selected route. */
+  private network = new THREE.Group();
+  private flatProps = new THREE.Group();
+  private metro: MetroNetwork | null = null;
   private rider?: Actor;
   private state: PlayState | null = null;
   private motion: Motion = { moving: false, pace: 0 };
@@ -97,12 +111,11 @@ export class JourneyLayer implements CustomLayerInterface {
     private readonly lowPower: boolean,
     private avatar: Avatar,
   ) {
-    this.scene.scale.y = -1;
-    this.overlay.scale.y = -1;
     this.root.add(this.scene);
     this.overlayRoot.add(this.overlay);
     // Warm tropical light: sky-blue fill from above, sandy bounce from below, low golden sun.
-    for (const g of [this.scene, this.overlay]) {
+    // Lights live in the unshifted roots so re-centring the scene each frame does not swing them.
+    for (const g of [this.root, this.overlayRoot]) {
       const hemi = new THREE.HemisphereLight(0xd6ecff, 0xd9c49a, 1.9);
       hemi.position.set(0, 0, 1);
       g.add(hemi);
@@ -114,6 +127,40 @@ export class JourneyLayer implements CustomLayerInterface {
       g.add(rim);
     }
     this.scene.add(this.props);
+    this.scene.add(this.network, this.flatProps);
+  }
+
+  setMetro(metro: MetroNetwork) {
+    this.metro = metro;
+    this.buildNetwork();
+  }
+
+  /** Rebuilds the metro network in the current anchor frame. */
+  private buildNetwork() {
+    this.network.clear();
+    if (!this.metro || this.metro.line.length < 2) return;
+    const pts = this.metro.line.map((c) => this.flatPt(c));
+    this.network.add(viaduct(pts));
+    for (const st of this.metro.stations) {
+      const v = this.flatPt(st);
+      // Orient the platform along the nearest stretch of track.
+      let best = 0;
+      let bestD = Infinity;
+      pts.forEach((p, i) => {
+        const d = p.distanceToSquared(new THREE.Vector2(v.x, v.y));
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      const a = pts[Math.max(0, best - 1)];
+      const b = pts[Math.min(pts.length - 1, best + 1)];
+      const station = metroStation(VIADUCT_HEIGHT);
+      station.position.set(pts[best].x, pts[best].y, 0);
+      station.rotation.z = Math.atan2(b.y - a.y, b.x - a.x) - Math.PI / 2;
+      this.network.add(station);
+    }
+    this.map?.triggerRepaint();
   }
 
   onAdd(map: MlMap, gl: WebGLRenderingContext | WebGL2RenderingContext) {
@@ -128,6 +175,12 @@ export class JourneyLayer implements CustomLayerInterface {
     this.clearActors();
     this.props.clear();
     this.renderer?.dispose();
+  }
+
+  /** Local ENU metres as a 2D point (for polylines). */
+  private flatPt(c: Coordinate): THREE.Vector2 {
+    const v = this.local(c);
+    return new THREE.Vector2(v.x, v.y);
   }
 
   /** Local ENU metres relative to the anchor (x east, y north). */
@@ -157,6 +210,7 @@ export class JourneyLayer implements CustomLayerInterface {
   setJourney(option: RouteOption | null) {
     this.clearActors();
     this.props.clear();
+    this.flatProps.clear();
     this.option = option;
     this.state = null;
     if (!option) return this.map?.triggerRepaint();
@@ -164,15 +218,14 @@ export class JourneyLayer implements CustomLayerInterface {
     this.anchor = MercatorCoordinate.fromLngLat([o.lon, o.lat], 0);
     this.unit = this.anchor.meterInMercatorCoordinateUnits();
     this.samplers = option.segments.map((s) => pathSampler(s));
+    this.buildNetwork(); // anchor moved
 
     // Static context: only for transit legs of this journey.
     option.segments.forEach((s, i) => {
-      if (s.mode === "metro") {
-        const pts = (s.geometry.length >= 2 ? s.geometry : [s.origin.location, s.destination.location]).map((c) => {
-          const v = this.local(c);
-          return new THREE.Vector2(v.x, v.y);
-        });
-        this.props.add(viaduct(pts));
+      // Metro legs ride on the network viaduct; only draw a local one if the network isn't loaded.
+      if (s.mode === "metro" && !this.metro) {
+        const pts = (s.geometry.length >= 2 ? s.geometry : [s.origin.location, s.destination.location]).map((c) => this.flatPt(c));
+        this.flatProps.add(viaduct(pts));
         for (const f of [0, 1]) {
           const st = metroStation(VIADUCT_HEIGHT);
           const smp = this.samplers[i].at(f);
@@ -194,13 +247,10 @@ export class JourneyLayer implements CustomLayerInterface {
     const roadLen = option.segments.reduce((a, s, i) => a + (PALM_MODES.has(s.mode) ? this.samplers[i].length : 0), 0) || 1;
     option.segments.forEach((s, i) => {
       if (!PALM_MODES.has(s.mode)) return;
-      const pts = (s.geometry.length >= 2 ? s.geometry : [s.origin.location, s.destination.location]).map((c) => {
-        const v = this.local(c);
-        return new THREE.Vector2(v.x, v.y);
-      });
+      const pts = (s.geometry.length >= 2 ? s.geometry : [s.origin.location, s.destination.location]).map((c) => this.flatPt(c));
       const max = Math.ceil((budget * this.samplers[i].length) / roadLen);
       const palms = palmsAlong(pts, s.mode === "walking" ? 18 : 26, s.mode === "walking" ? 5 : 8, max, i + 1);
-      if (palms) this.props.add(palms);
+      if (palms) this.flatProps.add(palms);
     });
     this.ensureActor(0);
     this.map?.triggerRepaint();
@@ -380,11 +430,20 @@ export class JourneyLayer implements CustomLayerInterface {
       }
     }
 
+    // Re-centre on the camera target every frame. Geometry can sit kilometres from the anchor
+    // (e.g. the whole metro line); without this, float32 maths on the GPU loses sub-metre depth
+    // precision and nearby surfaces z-fight. The offset is applied in double precision here.
+    const cc = this.map.getCenter();
+    const c = this.local({ lat: cc.lat, lon: cc.lng });
+    this.scene.position.set(-c.x, -c.y, 0);
+    this.overlay.position.set(-c.x, -c.y, 0);
     const mvp = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix as unknown as number[]);
     const local = new THREE.Matrix4()
-      .makeTranslation(this.anchor.x, this.anchor.y, this.anchor.z)
-      .scale(new THREE.Vector3(this.unit, this.unit, this.unit));
+      .makeTranslation(this.anchor.x + c.x * this.unit, this.anchor.y - c.y * this.unit, this.anchor.z)
+      .scale(new THREE.Vector3(this.unit, -this.unit, this.unit)); // ENU north → Mercator −y
     this.camera.projectionMatrix = mvp.multiply(local);
+    disableFrustumCulling(this.root);
+    disableFrustumCulling(this.overlayRoot);
     this.renderer.resetState();
     this.renderer.render(this.root, this.camera);
     this.renderer.clearDepth();

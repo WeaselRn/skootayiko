@@ -2,11 +2,10 @@
   "_comment": "Approximate fare and speed MODEL for modes without a usable fare API. These are NOT quotes. Each entry carries a 'basis' shown to users and a 'verify' note. Update with sourced values before relying on them.",
   "bus": {
     "minFare": 10,
-    "minFareKm": 2.5,
-    "perKmLow": 1.0,
-    "perKmHigh": 1.1,
-    "basis": "Kerala ordinary bus fare structure (minimum fare + per-km), approximate",
-    "verify": "Check current Kerala MVD / KSRTC fare notification"
+    "minFareKm": 1,
+    "perExtraKm": 8,
+    "basis": "Project fare rule: ₹10 up to 1 km, then ₹8 for each further (started) km",
+    "verify": "Interim rule set by the product owner; replace with the Kerala MVD / KSRTC fare table when available"
   },
   "ferry": {
     "low": 6,
@@ -61,6 +60,9 @@
     "transferPenaltySeconds": 300,
     "practicalDurationFactor": 2.0,
     "practicalDurationSlackSeconds": 1800,
-    "maxDurationFactor": 2.5
+    "maxDurationFactor": 2.5,
+    "scenicFerryWeight": 1.5,
+    "scenicWalkWeight": 0.3,
+    "scenicBasis": "Day planner 'scenic' preference: each ferry minute counts 1.5 minutes cheaper and each walking minute 0.3 minutes cheaper than the balanced score."
   }
 }

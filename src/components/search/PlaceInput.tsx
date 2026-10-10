@@ -18,14 +18,15 @@ interface Suggestion {
 
 interface Props {
   label: string;
-  marker: "A" | "B";
+  marker: string;
+  tone?: "start" | "via" | "end";
   value: PlaceValue | null;
   onChange(v: PlaceValue | null): void;
   picking: boolean;
   onPickOnMap(): void;
 }
 
-export default function PlaceInput({ label, marker, value, onChange, picking, onPickOnMap }: Props) {
+export default function PlaceInput({ label, marker, tone = "start", value, onChange, picking, onPickOnMap }: Props) {
   const [text, setText] = useState(value?.name ?? "");
   const [items, setItems] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -85,7 +86,7 @@ export default function PlaceInput({ label, marker, value, onChange, picking, on
       <div className="flex items-center gap-2 rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)] px-3 focus-within:ring-2 focus-within:ring-teal-600/40">
         <span
           aria-hidden
-          className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white ${marker === "A" ? "bg-slate-900" : "bg-rose-700"}`}
+          className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white ${tone === "start" ? "bg-slate-900" : tone === "end" ? "bg-rose-700" : "bg-teal-600"}`}
         >
           {marker}
         </span>

@@ -91,6 +91,7 @@ const MOTOR_ACCESS_RADIUS_M = 7000;
 const DIRECT_WALK_MAX_M = 3000;
 const DIRECT_RIDE_MIN_M = 800;
 const SERVICE_AREA_MARGIN_M = 15000;
+const BUS_HUB_MIN_PATTERNS = 6;
 
 function estimateRoad(mode: RoadMode, from: Place, to: Place, refine: boolean): RoadLeg {
   const straight = haversine(from.location, to.location);
@@ -124,12 +125,13 @@ function accessLinks(net: LoadedNetwork, at: Coordinate, modes: AccessMode[]): A
   }
   for (const mode of modes) {
     if (mode === "walking") continue;
-    // Motorised first/last mile only to metro stations and jetties (nearest few).
-    const near = net.grid
-      .within(at, MOTOR_ACCESS_RADIUS_M)
-      .filter(([s]) => net.stops[s].feed === "metro" || isJetty(net, s))
-      .filter(([, m]) => m > 600)
-      .slice(0, 4);
+    // Motorised first/last mile to the nearest metro stations / jetties and the nearest
+    // bus hubs (stops served by many routes), so places far from a bus stop still get buses.
+    const candidates = net.grid.within(at, MOTOR_ACCESS_RADIUS_M).filter(([, m]) => m > 600);
+    const near = [
+      ...candidates.filter(([s]) => net.stops[s].feed === "metro" || isJetty(net, s)).slice(0, 4),
+      ...candidates.filter(([s]) => net.stops[s].feed === "bus" && !isJetty(net, s) && net.patternsAtStop[s].length >= BUS_HUB_MIN_PATTERNS).slice(0, 3),
+    ];
     for (const [stop, m] of near) {
       const dist = m * 1.3;
       links.push({
@@ -221,7 +223,7 @@ async function refineWithOrs(c: Candidate, warnings: Set<string>): Promise<void>
   );
 }
 
-const MODE_LABEL: Record<TransportMode, string> = {
+export const MODE_LABEL: Record<TransportMode, string> = {
   walking: "Walk",
   bike_taxi: "Bike taxi",
   taxi: "Taxi",

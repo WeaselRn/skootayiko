@@ -15,7 +15,9 @@ import {
 import type { Coordinate, RouteOption, RoutePlanResponse } from "@/schema/route";
 import { MODE_STYLE } from "@/lib/modes";
 import { pathSampler } from "@/lib/journey";
+import type { Suggestion } from "@/schema/suggest";
 import type { Avatar } from "@/lib/avatar";
+import type { MetroNetwork } from "@/lib/metro";
 import { JourneyLayer } from "@/components/scene/JourneyLayer";
 import { closeZoom, type DriveFrame } from "@/components/player/useDrive";
 
@@ -28,6 +30,14 @@ export interface JourneyMapHandle {
   recenter(): void;
   fitOption(): void;
   focusSegment(i: number): void;
+  /** Fly to a point of interest. */
+  focusPoint(c: Coordinate): void;
+}
+
+export interface StopMarker {
+  location: Coordinate;
+  label: string;
+  color: string;
 }
 
 interface Props {
@@ -38,9 +48,12 @@ interface Props {
   follow: boolean;
   reducedMotion: boolean;
   lowPower: boolean;
-  origin?: Coordinate;
-  destination?: Coordinate;
-  pickMode: "origin" | "destination" | null;
+  /** Lettered pins for each filled-in stop (A, B, C …). */
+  stopMarkers: StopMarker[];
+  /** Sights offered along the route, shown as small amber pins. */
+  suggestions: Suggestion[];
+  /** True while the next map click should set a stop. */
+  pickMode: boolean;
   onPick(c: Coordinate): void;
   avatar: Avatar;
 }
@@ -161,6 +174,100 @@ function registerFacades(map: MlMap) {
   if (!map.hasImage("facade-glass")) map.addImage("facade-glass", facadeImage(GLASS_WALL, true), { pixelRatio: 2 });
 }
 
+const METRO_TEAL = "#0d9488";
+
+/**
+ * Kochi Metro Line 1 is always on the map: a teal line with white casing and named stations
+ * in 2D, and (via the 3D layer) the elevated viaduct and station blocks. It sits beneath the
+ * route layers so it never covers the journey being ridden.
+ */
+async function addMetroNetwork(map: MlMap, layer: JourneyLayer) {
+  let data: MetroNetwork;
+  try {
+    const res = await fetch("/api/metro");
+    if (!res.ok) return;
+    data = (await res.json()) as MetroNetwork;
+  } catch {
+    return;
+  }
+  if (!map.getStyle()) return;
+  layer.setMetro(data);
+  map.addSource("metro", {
+    type: "geojson",
+    data: {
+      type: "FeatureCollection",
+      features: [
+        { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: data.line.map((c) => [c.lon, c.lat]) } },
+        ...data.stations.map((st) => ({
+          type: "Feature" as const,
+          properties: { name: st.name },
+          geometry: { type: "Point" as const, coordinates: [st.lon, st.lat] },
+        })),
+      ],
+    },
+  });
+  const before = map.getLayer("alt-line") ? "alt-line" : undefined;
+  const lineOpacity = ["interpolate", ["linear"], ["zoom"], 14, 0.9, 16.5, 0.35] as unknown as ExpressionSpecification;
+  map.addLayer(
+    {
+      id: "metro-casing",
+      type: "line",
+      source: "metro",
+      filter: ["==", ["geometry-type"], "LineString"],
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 10, 3, 15, 9], "line-opacity": lineOpacity },
+    },
+    before,
+  );
+  map.addLayer(
+    {
+      id: "metro-line",
+      type: "line",
+      source: "metro",
+      filter: ["==", ["geometry-type"], "LineString"],
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": METRO_TEAL, "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1.6, 15, 5], "line-opacity": lineOpacity },
+    },
+    before,
+  );
+  map.addLayer(
+    {
+      id: "metro-stations",
+      type: "circle",
+      source: "metro",
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 15, 6],
+        "circle-color": "#ffffff",
+        "circle-stroke-color": METRO_TEAL,
+        "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 10, 1.5, 15, 3],
+      },
+    },
+    before,
+  );
+  if (KEY) {
+    map.addLayer(
+      {
+        id: "metro-labels",
+        type: "symbol",
+        source: "metro",
+        filter: ["==", ["geometry-type"], "Point"],
+        minzoom: 11.5,
+        layout: {
+          "text-field": ["get", "name"],
+          "text-font": ["Roboto Medium", "Noto Sans Regular"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 11.5, 10, 16, 13],
+          "text-offset": [0, 1.1],
+          "text-anchor": "top",
+          "text-optional": true,
+        },
+        paint: { "text-color": "#0f766e", "text-halo-color": "#ffffff", "text-halo-width": 1.6 },
+      },
+      before,
+    );
+  }
+}
+
 /** Warmer, greener, bluer basemap plus a tropical sky and golden light. */
 function paintBasemap(map: MlMap) {
   const set = (id: string, prop: string, value: unknown) => {
@@ -201,13 +308,14 @@ function paintBasemap(map: MlMap) {
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 export default function JourneyMap(props: Props) {
-  const { ref, plan, selected, activeSegment, follow, reducedMotion, lowPower, origin, destination, pickMode, onPick, avatar } =
+  const { ref, plan, selected, activeSegment, follow, reducedMotion, lowPower, stopMarkers, suggestions, pickMode, onPick, avatar } =
     props;
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const layerRef = useRef<JourneyLayer | null>(null);
   const [ready, setReady] = useState(false);
-  const markers = useRef<{ a?: Marker; b?: Marker }>({});
+  const markers = useRef<Marker[]>([]);
+  const pins = useRef<Marker[]>([]);
   const cam = useRef({ segment: -1, easeUntil: 0, lastManual: 0, lon: 0, lat: 0 });
   const avatarRef = useRef(avatar);
   avatarRef.current = avatar;
@@ -339,6 +447,7 @@ export default function JourneyMap(props: Props) {
       const layer = new JourneyLayer(lowPower, avatarRef.current);
       map.addLayer(layer);
       layerRef.current = layer;
+      addMetroNetwork(map, layer);
       setReady(true);
     });
     map.on("click", (e) => {
@@ -412,23 +521,34 @@ export default function JourneyMap(props: Props) {
 
   useEffect(() => layerRef.current?.setAvatar(avatar), [avatar, ready]);
 
-  // Origin/destination markers.
+  // Lettered stop markers (A, B, C …).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const put = (key: "a" | "b", c: Coordinate | undefined, label: string, color: string) => {
-      markers.current[key]?.remove();
-      markers.current[key] = undefined;
-      if (!c) return;
+    markers.current.forEach((m) => m.remove());
+    markers.current = stopMarkers.map((s) => {
       const node = document.createElement("div");
       node.className = "grid place-items-center rounded-full text-[11px] font-bold text-white shadow-md ring-2 ring-white";
-      node.style.cssText = `width:24px;height:24px;background:${color}`;
-      node.textContent = label;
-      markers.current[key] = new Marker({ element: node }).setLngLat([c.lon, c.lat]).addTo(map);
-    };
-    put("a", origin, "A", "#0f172a");
-    put("b", destination, "B", "#be123c");
-  }, [origin, destination]);
+      node.style.cssText = `width:24px;height:24px;background:${s.color}`;
+      node.textContent = s.label;
+      return new Marker({ element: node }).setLngLat([s.location.lon, s.location.lat]).addTo(map);
+    });
+  }, [stopMarkers]);
+
+  // Suggested sights along the route.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    pins.current.forEach((m) => m.remove());
+    pins.current = suggestions.map((s) => {
+      const node = document.createElement("div");
+      node.className = "grid place-items-center rounded-full text-[11px] text-white shadow ring-2 ring-white";
+      node.style.cssText = "width:20px;height:20px;background:#d97706";
+      node.textContent = "★";
+      node.title = s.name;
+      return new Marker({ element: node }).setLngLat([s.location.lon, s.location.lat]).addTo(map);
+    });
+  }, [suggestions]);
 
   // Route lines for the selected option and faint alternatives.
   useEffect(() => {
@@ -509,6 +629,9 @@ export default function JourneyMap(props: Props) {
       fitOption() {
         const map = mapRef.current;
         if (map && option) map.fitBounds(bboxOf(option), { padding: 60, duration: reducedMotion ? 0 : 800, pitch: 0, bearing: 0 });
+      },
+      focusPoint(c) {
+        mapRef.current?.flyTo({ center: [c.lon, c.lat], zoom: Math.max(mapRef.current.getZoom(), 15), duration: reducedMotion ? 0 : 700 });
       },
       focusSegment(i) {
         const map = mapRef.current;
