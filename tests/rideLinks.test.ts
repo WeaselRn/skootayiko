@@ -26,9 +26,12 @@ describe("rideLinks", () => {
     expect(uber.link(seg("taxi").origin, { name: "?" }, "ios")).toBeNull();
   });
 
-  it("Rapido is never claimed as pre-filled and opens the Play Store only on Android", () => {
+  it("Rapido is never claimed as pre-filled; on Android it targets the app with a Play Store fallback", () => {
     const r = (p: "android" | "desktop") => rideLinks(seg("bike_taxi"), p).find((l) => l.providerId === "rapido")!;
-    expect(r("android").href).toContain("play.google.com");
+    const a = r("android").href;
+    expect(a.startsWith("intent://rapido.bike/#Intent;scheme=https;package=com.rapido.passenger;")).toBe(true);
+    expect(decodeURIComponent(a.match(/S\.browser_fallback_url=([^;]+)/)![1])).toBe("https://play.google.com/store/apps/details?id=com.rapido.passenger");
+    expect(a.endsWith(";end")).toBe(true);
     expect(r("desktop").href).toBe("https://www.rapido.bike/");
     expect(r("android").prefilled).toBe(false);
   });

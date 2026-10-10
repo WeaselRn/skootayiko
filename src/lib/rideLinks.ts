@@ -65,21 +65,32 @@ export const uber: Provider = {
   },
 };
 
+const RAPIDO_PACKAGE = "com.rapido.passenger";
+const RAPIDO_PLAY = `https://play.google.com/store/apps/details?id=${RAPIDO_PACKAGE}`;
+
 /**
- * Rapido publishes no booking deep link, so this only opens the app listing (Play Store on Android) or
- * Rapido's website; the trip has to be entered again there.
+ * Rapido publishes no booking deep link, so trip details cannot be passed on.
+ * Android: rapido.bike serves an assetlinks.json that verifies the Rapido app for the domain, so an
+ * intent URL for https://rapido.bike/ restricted to the Rapido package opens the installed app where the
+ * app accepts that link, and falls back to the Play Store otherwise (Chrome and most Android browsers).
+ * Elsewhere: Rapido's website.
  */
 export const rapido: Provider = {
   id: "rapido",
   label: "Rapido",
   modes: ["bike_taxi", "auto_rickshaw", "taxi"],
   link(_from, to, platform) {
+    const android = platform === "android";
     return {
       providerId: "rapido",
       label: "Rapido",
-      href: platform === "android" ? "https://play.google.com/store/apps/details?id=com.rapido.passenger" : "https://www.rapido.bike/",
+      href: android
+        ? `intent://rapido.bike/#Intent;scheme=https;package=${RAPIDO_PACKAGE};S.browser_fallback_url=${encodeURIComponent(RAPIDO_PLAY)};end`
+        : "https://www.rapido.bike/",
       prefilled: false,
-      note: `Opens Rapido${platform === "android" ? " in the Play Store" : "'s website"}; enter ${to.name} as the drop there (trip details are not passed on).`,
+      note: android
+        ? `Opens the Rapido app (or the Play Store if it is not installed); enter ${to.name} as the drop there, trip details are not passed on.`
+        : `Opens Rapido's website; enter ${to.name} as the drop there (trip details are not passed on).`,
     };
   },
 };
