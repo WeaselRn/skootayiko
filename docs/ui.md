@@ -82,3 +82,10 @@ The UI never computes fares or rankings. It renders `RoutePlanResponse` as it re
 | No MapTiler key | Raw OSM tiles and a notice. |
 | Model fails to load | A coloured proxy box. |
 | Missing geometry | A straight line. |
+
+## Look and feel
+- **Basemap:** cream ground, tropical blue water, leafy greens, and a sky-to-horizon gradient with fog when tilted. A warm light shades the buildings.
+- **Buildings:** painted facade patterns (pastel walls with windows and sills) plus clay-tile roof caps. Towers over 28 m get a glass facade. The style's own grey 3D layer is hidden. Tile data merges buildings, so colour comes from id and height buckets.
+- **3D props:** instanced coconut palms line walking and road legs, at real size, up to 700 (160 on low-power devices). The viaduct has a teal band, the train wears KMRL white and teal, and the auto-rickshaw and ferry are drawn in detail.
+- **Target:** only the traveller or their vehicle is enlarged when you zoom out, together with its pulsing ring, bobbing pin and contact shadow. Traffic, palms and stations stay at true scale.
+- **Rendering:** ACES tone mapping and warm sun, sky and rim lighting. Route lines have a soft glow.

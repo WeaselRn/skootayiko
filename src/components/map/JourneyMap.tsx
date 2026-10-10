@@ -10,6 +10,7 @@ import {
   type GeoJSONSource,
   setWorkerUrl,
   type StyleSpecification,
+  type ExpressionSpecification,
 } from "maplibre-gl";
 import type { Coordinate, RouteOption, RoutePlanResponse } from "@/schema/route";
 import { MODE_STYLE } from "@/lib/modes";
@@ -104,6 +105,99 @@ function bboxOf(option: RouteOption): LngLatBounds {
   return b;
 }
 
+/** Kerala-pastel wall colours for painted facades; the last is a glassy tower facade. */
+const WALLS = ["#f8c8a8", "#f6a5a0", "#ffd98a", "#a9dfc8", "#a9cbee", "#cdb9e8", "#f3e3c3", "#bfe3a4"];
+const GLASS_WALL = "#b9d4e3";
+
+/** Buildings arrive merged per tile, so variety comes from id + height buckets. */
+const pick = (n: number) => ["%", ["+", ["to-number", ["coalesce", ["id"], 0]], ["round", ["*", ["coalesce", ["get", "render_height"], 6], 1.7]]], n];
+const FACADE_PATTERN = [
+  "case",
+  [">", ["coalesce", ["get", "render_height"], 0], 28],
+  "facade-glass",
+  ["match", pick(WALLS.length), ...WALLS.flatMap((_, i) => [i, `facade-${i}`]).slice(0, -2), `facade-${WALLS.length - 1}`],
+] as unknown as ExpressionSpecification;
+const ROOF_COLOR = [
+  "match",
+  pick(6),
+  0, "#c2552d",
+  1, "#b5482a",
+  2, "#d0683c",
+  3, "#f8fafc",
+  4, "#5eb3a8",
+  "#a8432a",
+] as unknown as ExpressionSpecification;
+
+/** Draws a 64×64 facade tile: painted wall, two storeys of windows with sills and a floor band. */
+function facadeImage(wall: string, glass: boolean): ImageData {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  g.fillStyle = wall;
+  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = "rgba(0,0,0,0.06)";
+  g.fillRect(0, 30, 64, 3); // floor band
+  for (const y of [6, 38]) {
+    for (const x of glass ? [4, 20, 36, 52] : [9, 37]) {
+      const w = glass ? 10 : 18;
+      const h = glass ? 20 : 16;
+      g.fillStyle = glass ? "#6aa6c4" : "#4f7f96";
+      g.fillRect(x, y, w, h);
+      g.fillStyle = "rgba(255,255,255,0.35)";
+      g.fillRect(x, y, w, h * 0.35); // sky reflection
+      if (!glass) {
+        g.fillStyle = "rgba(255,255,255,0.85)";
+        g.fillRect(x - 2, y + h, w + 4, 2); // sill
+      }
+    }
+  }
+  return g.getImageData(0, 0, 64, 64);
+}
+
+function registerFacades(map: MlMap) {
+  WALLS.forEach((w, i) => {
+    if (!map.hasImage(`facade-${i}`)) map.addImage(`facade-${i}`, facadeImage(w, false), { pixelRatio: 2 });
+  });
+  if (!map.hasImage("facade-glass")) map.addImage("facade-glass", facadeImage(GLASS_WALL, true), { pixelRatio: 2 });
+}
+
+/** Warmer, greener, bluer basemap plus a tropical sky and golden light. */
+function paintBasemap(map: MlMap) {
+  const set = (id: string, prop: string, value: unknown) => {
+    try {
+      map.setPaintProperty(id, prop as "fill-color", value as string);
+    } catch {
+      /* layer may not support the property */
+    }
+  };
+  for (const layer of map.getStyle().layers ?? []) {
+    const id = layer.id.toLowerCase();
+    // The style ships its own grey 3D buildings; ours (colourful) replace them.
+    if (layer.type === "fill-extrusion") map.setLayoutProperty(layer.id, "visibility", "none");
+    else if (layer.type === "background") set(layer.id, "background-color", "#f6efdf");
+    else if (layer.type === "fill" && /water|ocean|river|lake|sea/.test(id)) set(layer.id, "fill-color", "#7fcfe0");
+    else if (layer.type === "line" && /water|river|stream|canal/.test(id)) set(layer.id, "line-color", "#6cc3d8");
+    else if (layer.type === "fill" && /park|grass|wood|forest|meadow|scrub|farmland|garden|landcover|green|cemetery/.test(id))
+      set(layer.id, "fill-color", "#b8e2a0");
+    else if (layer.type === "fill" && /residential|landuse/.test(id)) set(layer.id, "fill-color", "#f3e9d4");
+    else if (layer.type === "fill" && /^building/.test(id)) set(layer.id, "fill-color", "#ead9c2");
+  }
+  try {
+    map.setSky({
+      "sky-color": "#8fd3ef",
+      "horizon-color": "#ffe6c4",
+      "fog-color": "#f6efdf",
+      "sky-horizon-blend": 0.6,
+      "horizon-fog-blend": 0.7,
+      "fog-ground-blend": 0.35,
+      "atmosphere-blend": 0.6,
+    });
+  } catch {
+    /* sky unsupported */
+  }
+  map.setLight({ anchor: "viewport", color: "#fff1d6", intensity: 0.42, position: [1.4, 205, 35] });
+}
+
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 export default function JourneyMap(props: Props) {
@@ -141,22 +235,40 @@ export default function JourneyMap(props: Props) {
     map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
     map.addControl(new AttributionControl({ compact: true }), "bottom-right");
     map.on("load", () => {
+      paintBasemap(map);
       // 3D buildings from the MapTiler vector source, if the style has one.
       const src = ["maptiler_planet", "openmaptiles"].find((s) => map.getSource(s));
       if (src) {
+        registerFacades(map);
+        const height = ["coalesce", ["get", "render_height"], 6];
+        const opacity = ["interpolate", ["linear"], ["zoom"], 15, 0.95, 18.5, 0.62, 21, 0.4];
         map.addLayer({
           id: "buildings-3d",
           type: "fill-extrusion",
           source: src,
           "source-layer": "building",
-          minzoom: 14.5,
+          minzoom: 14,
           paint: {
-            "fill-extrusion-color": "#d6d3d1",
-            "fill-extrusion-height": ["coalesce", ["get", "render_height"], 8],
+            "fill-extrusion-pattern": FACADE_PATTERN,
+            "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], 14, 0, 15, height],
             "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
-            // Fade buildings at street level so the follow camera can see through them.
-            "fill-extrusion-opacity": ["interpolate", ["linear"], ["zoom"], 15, 0.6, 18.5, 0.32, 21, 0.18],
-          },
+            "fill-extrusion-vertical-gradient": true,
+            "fill-extrusion-opacity": opacity,
+          } as never,
+        });
+        // Roof caps: Kerala clay-tile terracotta with some white and teal terraces.
+        map.addLayer({
+          id: "buildings-roof",
+          type: "fill-extrusion",
+          source: src,
+          "source-layer": "building",
+          minzoom: 15,
+          paint: {
+            "fill-extrusion-color": ROOF_COLOR,
+            "fill-extrusion-base": height,
+            "fill-extrusion-height": ["+", height, 0.5],
+            "fill-extrusion-opacity": opacity,
+          } as never,
         });
       }
       map.addSource("alt", { type: "geojson", data: EMPTY });
@@ -168,6 +280,18 @@ export default function JourneyMap(props: Props) {
         source: "alt",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": "#94a3b8", "line-width": 3, "line-opacity": 0.5 },
+      });
+      map.addLayer({
+        id: "route-glow",
+        type: "line",
+        source: "route",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": ["case", ["boolean", ["feature-state", "active"], false], 26, 16],
+          "line-blur": 10,
+          "line-opacity": ["case", ["boolean", ["feature-state", "dim"], false], 0.12, 0.38],
+        },
       });
       map.addLayer({
         id: "route-casing",
@@ -206,9 +330,9 @@ export default function JourneyMap(props: Props) {
         type: "circle",
         source: "stops",
         paint: {
-          "circle-radius": 6,
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4, 16, 8],
           "circle-color": "#ffffff",
-          "circle-stroke-width": 3,
+          "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 16, 4],
           "circle-stroke-color": ["get", "color"],
         },
       });

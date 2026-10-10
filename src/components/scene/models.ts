@@ -16,13 +16,25 @@ interface ModelSpec {
   /** Extra yaw (degrees) so the model faces +Y (north) at bearing 0. Tuned per asset. */
   yaw: number;
   clips?: Partial<Record<ClipName, string>>;
+  /** Material name -> colour override (livery). */
+  tint?: Record<string, number>;
+  /** Shine for painted vehicle bodies. */
+  gloss?: boolean;
 }
 
 export const MODELS: Record<ModelKey, ModelSpec> = {
-  bus: { url: "/models/bus.glb", size: 11, measure: "length", yaw: 180 },
-  car: { url: "/models/car.glb", size: 4.2, measure: "length", yaw: 0 },
-  motorcycle: { url: "/models/motorcycle.glb", size: 2.1, measure: "length", yaw: 0 },
-  train: { url: "/models/train.glb", size: 22, measure: "length", yaw: 180 },
+  bus: { url: "/models/bus.glb", size: 11, measure: "length", yaw: 180, gloss: true },
+  car: { url: "/models/car.glb", size: 4.2, measure: "length", yaw: 0, gloss: true },
+  motorcycle: { url: "/models/motorcycle.glb", size: 2.1, measure: "length", yaw: 0, gloss: true },
+  train: {
+    url: "/models/train.glb",
+    size: 22,
+    measure: "length",
+    yaw: 180,
+    gloss: true,
+    // Kochi Metro livery: white body, teal and deep-teal bands.
+    tint: { White: 0xf8fafc, Blue: 0x14b8a6, DarkBlue: 0x0f766e, Grey: 0x94a3b8, Black: 0x1e293b },
+  },
   man: {
     url: "/models/man.glb",
     size: 1.75,
@@ -105,9 +117,21 @@ export function instantiate(key: ModelKey, gltf: GLTF): Instance {
   const obj = (spec.clips ? cloneSkinned(gltf.scene) : gltf.scene.clone(true)) as THREE.Object3D;
   obj.updateMatrixWorld(true);
   obj.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
     // Skinned bounding volumes are computed in bind pose and are often wrong after
     // normalisation; these scenes are tiny, so skip culling instead of risking pop-out.
-    if ((o as THREE.Mesh).isMesh) o.frustumCulled = false;
+    mesh.frustumCulled = false;
+    if (spec.tint || spec.gloss) {
+      const m = (mesh.material as THREE.MeshStandardMaterial).clone();
+      const t = spec.tint?.[m.name];
+      if (t !== undefined) m.color.setHex(t);
+      if (spec.gloss) {
+        m.roughness = Math.min(m.roughness, 0.42);
+        m.metalness = Math.max(m.metalness, 0.12);
+      }
+      mesh.material = m;
+    }
   });
 
   const box = new THREE.Box3().setFromObject(obj, true);

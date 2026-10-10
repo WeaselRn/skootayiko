@@ -5,7 +5,20 @@ import type { Avatar } from "@/lib/avatar";
 import { pathSampler, type PathSampler, type PlayState } from "@/lib/journey";
 import { MODE_STYLE } from "@/lib/modes";
 import { instantiate, isPerson, loadModel, MODELS, modelForMode, type Instance } from "./models";
-import { autoRickshaw, boat, busStop, metroStation, proxy, viaduct, VIADUCT_HEIGHT } from "./procedural";
+import {
+  autoRickshaw,
+  boat,
+  busStop,
+  contactShadow,
+  metroStation,
+  palmsAlong,
+  proxy,
+  targetMarker,
+  TRAFFIC_COLORS,
+  viaduct,
+  VIADUCT_HEIGHT,
+  type TargetMarker,
+} from "./procedural";
 
 interface Actor {
   root: THREE.Group;
@@ -14,7 +27,21 @@ interface Actor {
   person: boolean;
   inst?: Instance;
   traffic: THREE.Group[];
+  marker?: TargetMarker;
 }
+
+/** Approximate model heights (m) for placing the target pin. */
+const PIN_HEIGHT: Partial<Record<string, number>> = {
+  person: 1.9,
+  motorcycle: 1.5,
+  auto: 2.1,
+  car: 1.6,
+  bus: 3.4,
+  train: 4.3,
+  boat: 5.6,
+};
+/** Road-side legs that get coconut palms. */
+const PALM_MODES = new Set(["walking", "bike_taxi", "auto_rickshaw", "taxi", "bus", "cycling"]);
 
 export interface Motion {
   /** True while the rider is actively moving along the route. */
@@ -74,13 +101,17 @@ export class JourneyLayer implements CustomLayerInterface {
     this.overlay.scale.y = -1;
     this.root.add(this.scene);
     this.overlayRoot.add(this.overlay);
+    // Warm tropical light: sky-blue fill from above, sandy bounce from below, low golden sun.
     for (const g of [this.scene, this.overlay]) {
-      const hemi = new THREE.HemisphereLight(0xffffff, 0x8899aa, 2.2);
+      const hemi = new THREE.HemisphereLight(0xd6ecff, 0xd9c49a, 1.9);
       hemi.position.set(0, 0, 1);
       g.add(hemi);
-      const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-      sun.position.set(-0.4, -0.7, 1);
+      const sun = new THREE.DirectionalLight(0xfff0d4, 2.4);
+      sun.position.set(-0.5, -0.8, 1);
       g.add(sun);
+      const rim = new THREE.DirectionalLight(0xbfe9ff, 0.7);
+      rim.position.set(0.6, 0.7, 0.6);
+      g.add(rim);
     }
     this.scene.add(this.props);
   }
@@ -89,6 +120,8 @@ export class JourneyLayer implements CustomLayerInterface {
     this.map = map;
     this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl as WebGL2RenderingContext, antialias: !this.lowPower });
     this.renderer.autoClear = false;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
   }
 
   onRemove() {
@@ -156,6 +189,19 @@ export class JourneyLayer implements CustomLayerInterface {
         }
       }
     });
+    // Coconut palms line road and walking legs (real size; they never get exaggerated).
+    const budget = this.lowPower ? 160 : 700;
+    const roadLen = option.segments.reduce((a, s, i) => a + (PALM_MODES.has(s.mode) ? this.samplers[i].length : 0), 0) || 1;
+    option.segments.forEach((s, i) => {
+      if (!PALM_MODES.has(s.mode)) return;
+      const pts = (s.geometry.length >= 2 ? s.geometry : [s.origin.location, s.destination.location]).map((c) => {
+        const v = this.local(c);
+        return new THREE.Vector2(v.x, v.y);
+      });
+      const max = Math.ceil((budget * this.samplers[i].length) / roadLen);
+      const palms = palmsAlong(pts, s.mode === "walking" ? 18 : 26, s.mode === "walking" ? 5 : 8, max, i + 1);
+      if (palms) this.props.add(palms);
+    });
     this.ensureActor(0);
     this.map?.triggerRepaint();
   }
@@ -166,6 +212,12 @@ export class JourneyLayer implements CustomLayerInterface {
     root.visible = false;
     this.overlay.add(root);
     const actor: Actor = { root, size: 4, person: false, traffic: [] };
+    const person = kind === "man" || kind === "woman";
+    const size = kind === "auto" ? 2.7 : kind === "boat" ? 14 : kind ? MODELS[kind].size : 3;
+    const w = person ? 1.1 : kind === "boat" ? 5.5 : kind === "train" ? 3.6 : kind === "bus" ? 3.2 : kind === "motorcycle" ? 1 : 2.2;
+    root.add(contactShadow(w * 1.25, person ? 1.1 : size * 1.08));
+    actor.marker = targetMarker(color, person ? 0.85 : Math.max(1.2, w * 0.75), PIN_HEIGHT[person ? "person" : (kind ?? "car")] ?? 2);
+    root.add(actor.marker.group);
     if (kind === "auto") {
       root.add(autoRickshaw());
       actor.size = 2.6;
@@ -218,12 +270,14 @@ export class JourneyLayer implements CustomLayerInterface {
             const inst = instantiate("car", g);
             inst.root.traverse((o) => {
               const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-              if (m?.color) {
+              // Body panels get a vivid paint; glass/tyres (dark) keep theirs.
+              if (m?.color && m.color.getHSL({ h: 0, s: 0, l: 0 }).l > 0.25) {
                 const mm = m.clone();
-                mm.color.offsetHSL(k ? 0.55 : 0.15, -0.2, 0.1);
+                mm.color.setHex(TRAFFIC_COLORS[(i * 2 + k) % TRAFFIC_COLORS.length]);
                 (o as THREE.Mesh).material = mm;
               }
             });
+            car.add(contactShadow(2.4, 4.6));
             car.add(inst.root);
           })
           .catch(() => car.add(proxy(4.2, "#94a3b8")));
@@ -234,7 +288,7 @@ export class JourneyLayer implements CustomLayerInterface {
 
   /** The traveller standing at a stop while waiting. */
   private riderActor(): Actor {
-    if (!this.rider) this.rider = this.makeActor(this.avatar, "#6b7280");
+    if (!this.rider) this.rider = this.makeActor(this.avatar, "#0d9488");
     return this.rider;
   }
 
@@ -286,6 +340,8 @@ export class JourneyLayer implements CustomLayerInterface {
     if (this.rider) this.rider.root.visible = false;
 
     let needsFrames = false;
+    const now = performance.now() / 1000;
+    for (const a of [...this.actors.values(), this.rider]) a?.marker?.update(now);
     const st = this.state;
     if (this.option && st) {
       const seg = this.option.segments[st.segment];
@@ -304,6 +360,7 @@ export class JourneyLayer implements CustomLayerInterface {
         if (actor) {
           const at = sampler.at(st.progress);
           this.place(actor, at.point, at.bearing, zBase);
+          needsFrames = true; // marker pulse
           if (actor.person) {
             this.animatePerson(actor, dt, this.motion.moving);
             needsFrames = true;
@@ -312,11 +369,11 @@ export class JourneyLayer implements CustomLayerInterface {
             const f = (1 - st.progress + (k ? 0.35 : 0.7)) % 1;
             const c = sampler.at(f);
             const side = THREE.MathUtils.degToRad(c.bearing + 90);
-            const ex = this.exaggeration(actor, c.point.lat);
-            const off = 2 + ex;
+            // Background traffic stays at real size; only the traveller is enlarged when zoomed out.
+            const off = 3.4;
             car.position.copy(this.local(c.point)).add(new THREE.Vector3(-Math.sin(side) * off, -Math.cos(side) * off, 0));
             car.rotation.z = -THREE.MathUtils.degToRad(c.bearing + 180);
-            car.scale.setScalar(ex * 0.8);
+            car.scale.setScalar(1);
             car.visible = car.children.length > 0;
           });
         }
