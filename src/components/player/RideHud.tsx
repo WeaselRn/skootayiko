@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import type { RouteOption } from "@/schema/route";
 import { fmtCost, fmtDuration } from "@/lib/format";
 import { MODE_STYLE } from "@/lib/modes";
@@ -24,7 +25,8 @@ interface Props {
   onToggleAuto(): void;
   onContinue(): void;
   onRestart(): void;
-  onJump(i: number): void;
+  /** Move the journey to a time (seconds); see useDrive.seek. */
+  onSeek(t: number, phase: "start" | "move" | "end"): void;
   onFollow(f: boolean): void;
   onRecenter(): void;
   onExit(): void;
@@ -56,6 +58,87 @@ function HoldButton({ k, label, children, onPress, className = "" }: { k: Key; l
     >
       {children}
     </button>
+  );
+}
+
+/** Draggable journey progress: pointer drag, click, or arrow keys / Home / End when focused. */
+function Scrubber(p: Props & { pct: number; color: string }) {
+  const bar = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const total = p.timeline.total;
+  const at = (clientX: number) => {
+    const r = bar.current!.getBoundingClientRect();
+    return (Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * total);
+  };
+  const step = total / 50;
+  const fmt = (t: number) => `${fmtDuration(t)} of ${fmtDuration(total)}`;
+  return (
+    <div
+      ref={bar}
+      role="slider"
+      tabIndex={0}
+      aria-label="Journey progress"
+      aria-valuemin={0}
+      aria-valuemax={Math.round(total)}
+      aria-valuenow={Math.round(p.time)}
+      aria-valuetext={fmt(p.time)}
+      onPointerDown={(e) => {
+        dragging.current = true;
+        try {
+          // Keep receiving moves when the finger or cursor leaves the thin bar.
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          /* capture unavailable: moves over the bar still work */
+        }
+        p.onSeek(at(e.clientX), "start");
+      }}
+      onPointerMove={(e) => {
+        if (dragging.current) p.onSeek(at(e.clientX), "move");
+      }}
+      onPointerUp={(e) => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        p.onSeek(at(e.clientX), "end");
+      }}
+      onPointerCancel={() => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        p.onSeek(p.time, "end");
+      }}
+      onKeyDown={(e) => {
+        const to =
+          e.key === "ArrowRight" || e.key === "ArrowUp" ? p.time + step
+          : e.key === "ArrowLeft" || e.key === "ArrowDown" ? p.time - step
+          : e.key === "Home" ? 0
+          : e.key === "End" ? total
+          : null;
+        if (to === null) return;
+        // Keep the ride's own W/A/S/D/arrow controls from also reacting.
+        e.preventDefault();
+        e.stopPropagation();
+        p.onSeek(to, "end");
+      }}
+      className="group relative mt-2.5 flex h-3 w-full cursor-pointer touch-none select-none gap-0.5 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 [@media(pointer:coarse)]:h-4"
+    >
+      {p.option.segments.map((s, i) => {
+        const startT = segmentStart(p.timeline, i);
+        const endT = i + 1 < p.option.segments.length ? segmentStart(p.timeline, i + 1) : total;
+        return (
+          <span
+            key={s.id}
+            aria-hidden
+            title={`Leg ${i + 1}: ${MODE_STYLE[s.mode].label}`}
+            className="h-full rounded-full"
+            style={{ flex: `${Math.max(1, endT - startT)} 1 0`, background: MODE_STYLE[s.mode].color, opacity: i === p.state.segment ? 1 : 0.35 }}
+          />
+        );
+      })}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] bg-white shadow transition-transform group-active:scale-125 [@media(pointer:coarse)]:h-7 [@media(pointer:coarse)]:w-7"
+        style={{ left: `${p.pct}%`, borderColor: p.color }}
+      />
+    </div>
   );
 }
 
@@ -172,28 +255,8 @@ export default function RideHud(p: Props) {
           </div>
         </div>
 
-        {/* Leg-segmented progress; click a leg to jump to it. */}
-        <div className="relative mt-2.5 flex h-3 w-full gap-0.5">
-          {p.option.segments.map((s, i) => {
-            const startT = segmentStart(p.timeline, i);
-            const endT = i + 1 < p.option.segments.length ? segmentStart(p.timeline, i + 1) : p.timeline.total;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => p.onJump(i)}
-                aria-label={`Jump to leg ${i + 1}: ${MODE_STYLE[s.mode].label}`}
-                className="h-full rounded-full opacity-90 hover:opacity-100"
-                style={{ flex: `${Math.max(1, endT - startT)} 1 0`, background: MODE_STYLE[s.mode].color, opacity: i === p.state.segment ? 1 : 0.35 }}
-              />
-            );
-          })}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] bg-white shadow"
-            style={{ left: `${pct}%`, borderColor: st.color }}
-          />
-        </div>
+        {/* Leg-coloured progress bar: drag (or click) anywhere to move the ride forward or back. */}
+        <Scrubber {...p} pct={pct} color={st.color} />
 
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="hidden flex-wrap items-center gap-x-2.5 gap-y-1 text-[var(--color-muted)] [@media(pointer:fine)]:flex">

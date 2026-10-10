@@ -694,6 +694,16 @@ export default function JourneyMap(props: Props) {
         if (!seg || !sampler) return;
         const at = sampler.at(f.state.kind === "wait" ? 0 : f.state.progress);
         const now = performance.now();
+        if (f.scrub) {
+          // Dragging the progress bar: track the rider immediately, keep the user's zoom and view angle.
+          cam.current.segment = f.state.segment;
+          cam.current.easeUntil = 0;
+          cam.current.lon = at.point.lon;
+          cam.current.lat = at.point.lat;
+          map.stop();
+          map.jumpTo({ center: [at.point.lon, at.point.lat] });
+          return;
+        }
         if (cam.current.segment !== f.state.segment) {
           // New leg: swoop into a close-up behind the rider.
           cam.current.segment = f.state.segment;

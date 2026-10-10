@@ -47,6 +47,8 @@ export interface DriveFrame {
   /** -1 = orbit left (A), 1 = orbit right (D). */
   orbit: number;
   dt: number;
+  /** Set while the progress bar is dragged: the camera should follow at once, without leg swoops. */
+  scrub?: boolean;
 }
 
 export type Gate = { kind: "transfer"; next: number } | { kind: "arrived" } | null;
@@ -82,6 +84,8 @@ export function useDrive({ option, active, getZoom, onFrame, reducedMotion }: Op
   const t = useRef(0);
   const v = useRef(0);
   const gateRef = useRef<Gate>(null);
+  /** True while the progress bar is being dragged; the loop then leaves `t` alone. */
+  const scrubbing = useRef(false);
   const autoRef = useRef(false);
   const input = useRef({ fwd: false, back: false, left: false, right: false, boost: false });
   const cbs = useRef({ onFrame, getZoom });
@@ -132,6 +136,30 @@ export function useDrive({ option, active, getZoom, onFrame, reducedMotion }: Op
       setTime(t.current);
       setGateBoth(null);
       cbs.current.onFrame({ state: stateAt(timeline, t.current), moving: false, pace: 0, orbit: 0, dt: 0 });
+    },
+    [timeline],
+  );
+
+  /**
+   * Scrubbing: moves the journey to time `to` (seconds) in either direction without restarting the leg.
+   * `phase` "start"/"move" pause the loop's own motion; "end" hands control back (and shows the arrival
+   * card if dragged to the very end).
+   */
+  const seek = useCallback(
+    (to: number, phase: "start" | "move" | "end") => {
+      if (!timeline) return;
+      const next = Math.max(0, Math.min(timeline.total, to));
+      const delta = next - t.current;
+      scrubbing.current = phase !== "end";
+      t.current = next;
+      v.current = 0;
+      setTime(next);
+      setGateBoth(phase === "end" && next >= timeline.total ? { kind: "arrived" } : null);
+      const st = stateAt(timeline, next);
+      // Animate the rider while the bar moves under the finger, so dragging reads as travel.
+      const moving = phase === "move" && Math.abs(delta) > 0.01 && st.kind === "move";
+      cbs.current.onFrame({ state: st, moving, pace: moving ? 1 : 0, orbit: 0, dt: 0, scrub: true });
+      if (phase === "end") setMoving(false);
     },
     [timeline],
   );
@@ -223,6 +251,12 @@ export function useDrive({ option, active, getZoom, onFrame, reducedMotion }: Op
       v.current += (target - v.current) * k;
       if (Math.abs(v.current) < 0.01) v.current = 0;
 
+      if (scrubbing.current) {
+        // The progress bar owns the position while it is dragged.
+        v.current = 0;
+        raf = requestAnimationFrame(tick);
+        return;
+      }
       const prevSeg = st.segment;
       let next = Math.max(0, Math.min(timeline.total, t.current + v.current * dt));
       // Transfer checkpoint: stop at the end of each leg until the player continues.
@@ -264,5 +298,5 @@ export function useDrive({ option, active, getZoom, onFrame, reducedMotion }: Op
   }, [active, timeline, option, lengths, continueGate, reducedMotion]);
 
   const state = timeline ? stateAt(timeline, time) : null;
-  return { timeline, time, state, gate, auto, moving, rate, press, toggleAuto, continueGate, restart, jumpToSegment };
+  return { timeline, time, state, gate, auto, moving, rate, press, toggleAuto, continueGate, restart, jumpToSegment, seek };
 }

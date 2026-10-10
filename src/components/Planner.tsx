@@ -294,10 +294,7 @@ export default function Planner() {
             drive.restart();
             mapRef.current?.recenter();
           },
-          onJump: (i: number) => {
-            drive.jumpToSegment(i);
-            mapRef.current?.recenter();
-          },
+          onSeek: drive.seek,
           onFollow: (f: boolean) => {
             setFollow(f);
             if (f) mapRef.current?.recenter();
