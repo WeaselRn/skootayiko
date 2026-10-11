@@ -650,7 +650,7 @@ export default function Planner() {
 
               <footer className="border-t border-[var(--color-line)] pt-2 text-[11px] text-[var(--color-muted)]">
                 Sources: {plan.provenance.map((p) => p.name + (p.expired ? " (expired)" : "")).join(" · ")}. Times and fares are
-                estimates, not live data. <a className="underline" href="/about">About &amp; attribution</a>
+                estimates, not live data. <a className="underline" href="/about">About &amp; attribution</a> · <a className="underline" href="/credits">Credits</a>
               </footer>
             </>
           )}

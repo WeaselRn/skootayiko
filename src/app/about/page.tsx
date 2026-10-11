@@ -26,13 +26,15 @@ export default function About() {
         <li>Place search: LocationIQ, © OpenStreetMap contributors.</li>
         <li>Map tiles: © MapTiler © OpenStreetMap contributors.</li>
       </ul>
-      <h2 className="text-base font-semibold">3D models</h2>
-      <ul className="list-disc space-y-1 pl-5">
-        <li>Animated Woman, Man, High Speed Train Front — Quaternius (CC0), via Poly Pizza.</li>
-        <li>Bus, Motorcycle — Poly by Google (CC BY 3.0), via Poly Pizza.</li>
-        <li>Red Car — J-Toastie, via Poly Pizza (check licence on the source page).</li>
-        <li>Auto-rickshaw, boat, viaduct, stations and stop signs are simple procedural shapes.</li>
-      </ul>
+      <h2 className="text-base font-semibold">3D models and open-source projects</h2>
+      <p>
+        Full credits for each 3D model (Animated Woman, Man, High Speed Front, Bus, Motorcycle, Red Car) and the open-source
+        projects behind this app are on the{" "}
+        <Link href="/credits" className="text-teal-700 underline">
+          Credits page
+        </Link>
+        .
+      </p>
     </main>
   );
 }
