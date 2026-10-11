@@ -115,3 +115,22 @@ export const METRO_WHATSAPP = {
   number: "+91 91889 57488",
   href: `https://wa.me/919188957488?text=${encodeURIComponent("Hi")}`,
 };
+
+export interface OptionLinks {
+  /** Ride-app links for the option's first bike-taxi/auto/taxi leg (the one you would book first). */
+  rides: ExternalLink[];
+  /** "Origin → Destination" of that leg, for labelling. */
+  rideLeg?: string;
+  /** True when the option rides the metro, so the WhatsApp ticket link applies. */
+  metro: boolean;
+}
+
+/** Hand-off links for a whole journey option, for showing up front (map overlay, ride HUD). */
+export function optionLinks(segments: Pick<RouteSegment, "mode" | "origin" | "destination">[], platform: Platform, providers = PROVIDERS): OptionLinks {
+  const ride = segments.find((s) => rideLinks(s, platform, providers).length > 0);
+  return {
+    rides: ride ? rideLinks(ride, platform, providers) : [],
+    rideLeg: ride ? `${ride.origin.name} → ${ride.destination.name}` : undefined,
+    metro: segments.some((s) => s.mode === "metro"),
+  };
+}

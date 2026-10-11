@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import type { RouteSegment } from "@/schema/route";
-import { detectPlatform, METRO_WHATSAPP, rideLinks, type Platform } from "@/lib/rideLinks";
+import { METRO_WHATSAPP, rideLinks } from "@/lib/rideLinks";
+import { usePlatform } from "./usePlatform";
 
 const link =
   "inline-flex items-center rounded-md px-1.5 py-1 [@media(pointer:coarse)]:py-2 font-medium text-teal-700 underline-offset-2 hover:bg-teal-600/10 hover:underline dark:text-teal-400";
@@ -12,9 +12,7 @@ const link =
  * They open outside apps in a new tab; nothing is booked here, so the wording says so.
  */
 export default function ExternalLinks({ segment }: { segment: Pick<RouteSegment, "mode" | "origin" | "destination"> }) {
-  // Platform is only known in the browser; render the desktop variant until then (no hydration mismatch).
-  const [platform, setPlatform] = useState<Platform>("desktop");
-  useEffect(() => setPlatform(detectPlatform()), []);
+  const platform = usePlatform();
 
   if (segment.mode === "metro") {
     return (

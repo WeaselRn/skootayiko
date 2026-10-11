@@ -17,11 +17,13 @@ import DayPanel, { type Pace, type Prefer } from "./itinerary/DayPanel";
 import Timeline from "./itinerary/Timeline";
 import { useSuggestions } from "./search/useSuggestions";
 import RouteCard from "./routes/RouteCard";
+import BookingPills from "./routes/BookingPills";
 import SegmentList from "./routes/SegmentList";
 import RideHud from "./player/RideHud";
 import { useDrive, type DriveFrame } from "./player/useDrive";
 import Logo from "./brand/Logo";
 import type { JourneyMapHandle, StopMarker } from "./map/JourneyMap";
+import MiniMap from "./map/MiniMap";
 
 const JourneyMap = dynamic(() => import("./map/JourneyMap"), {
   ssr: false,
@@ -336,16 +338,28 @@ export default function Planner() {
                 {hudProps && <RideHud part="panel" {...hudProps} />}
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={startRide}
-                className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-[var(--brand-ink)] px-5 py-2.5 font-[family-name:var(--font-display)] text-base font-bold text-white shadow-[0_5px_0_0_#0d9488] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-[0_2px_0_0_#0d9488]"
-              >
-                ▶ Ride this route
-                <span className="hidden text-xs font-medium opacity-70 [@media(pointer:fine)]:inline">· drive with W A S D</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={startRide}
+                  className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-[var(--brand-ink)] px-5 py-2.5 font-[family-name:var(--font-display)] text-base font-bold text-white shadow-[0_5px_0_0_#0d9488] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-[0_2px_0_0_#0d9488]"
+                >
+                  ▶ Ride this route
+                  <span className="hidden text-xs font-medium opacity-70 [@media(pointer:fine)]:inline">· drive with W A S D</span>
+                </button>
+                <BookingPills segments={option.segments} variant="overlay" />
+              </div>
             )}
           </div>
+        )}
+        {/* Route overview while riding: top-left on phones and narrow windows (bottom is busy with controls),
+            bottom-right on wide screens where the ride panel leaves room. */}
+        {riding && option && drive.state && (
+          <MiniMap
+            option={option}
+            state={drive.state}
+            className="absolute left-2 top-2 z-10 h-24 w-24 lg:bottom-8 lg:left-auto lg:right-4 lg:top-auto lg:h-36 lg:w-36"
+          />
         )}
         {/* Transfer / arrival cards sit above the control bar, centred on the map. */}
         {riding && hudProps && (

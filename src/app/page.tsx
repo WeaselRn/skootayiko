@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
+import RouteRiders from "@/components/brand/RouteRiders";
 
 // One river-like route the little vehicles ride along (viewBox 1200×400).
 const ROUTE = "M -40 300 C 180 300, 220 120, 420 140 S 700 330, 860 250 S 1060 70, 1240 110";
@@ -24,26 +25,8 @@ export default function Welcome() {
           <path d={ROUTE} fill="none" stroke="#0d9488" strokeOpacity="0.12" strokeWidth="46" strokeLinecap="round" />
           <path d={ROUTE} fill="none" stroke="#0d9488" strokeOpacity="0.55" strokeWidth="3" strokeDasharray="2 12" strokeLinecap="round" />
         </svg>
-        <div className="absolute inset-0" style={{ width: "100%", height: "100%" }}>
-          <svg viewBox="0 0 1200 400" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
-            {RIDERS.map((r) => (
-              <g
-                key={r.label}
-                className="motion-safe:animate-[ride_18s_linear_infinite]"
-                style={{
-                  offsetPath: `path("${ROUTE}")`,
-                  offsetRotate: "auto",
-                  offsetDistance: `${r.at * 100}%`,
-                  animationDelay: `${-r.at * LOOP_S}s`,
-                }}
-              >
-                <rect x={-r.w / 2} y={-9} width={r.w} height={18} rx={7} fill={r.color} />
-                <rect x={r.w / 2 - 10} y={-5} width={6} height={6} rx={1.5} fill="#ffffff" opacity="0.85" />
-                <circle cx={-r.w / 2 + 7} cy={10} r={3.5} fill="#10233a" />
-                <circle cx={r.w / 2 - 7} cy={10} r={3.5} fill="#10233a" />
-              </g>
-            ))}
-          </svg>
+        <div className="absolute inset-0">
+          <RouteRiders path={ROUTE} riders={RIDERS} loopS={LOOP_S} />
         </div>
       </div>
 

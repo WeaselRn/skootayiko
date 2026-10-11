@@ -6,6 +6,7 @@ import { fmtCost, fmtDuration } from "@/lib/format";
 import { MODE_STYLE } from "@/lib/modes";
 import { segmentStart, type PlayState, type Timeline } from "@/lib/journey";
 import type { Gate } from "./useDrive";
+import BookingPills from "../routes/BookingPills";
 
 type Key = "fwd" | "back" | "left" | "right" | "boost";
 
@@ -257,6 +258,11 @@ export default function RideHud(p: Props) {
 
         {/* Leg-coloured progress bar: drag (or click) anywhere to move the ride forward or back. */}
         <Scrubber {...p} pct={pct} color={st.color} />
+
+        {/* This leg's outside booking options (ride apps or metro tickets), when it has any. */}
+        <div className="mt-2 empty:hidden">
+          <BookingPills segments={[seg]} variant="hud" />
+        </div>
 
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="hidden flex-wrap items-center gap-x-2.5 gap-y-1 text-[var(--color-muted)] [@media(pointer:fine)]:flex">
